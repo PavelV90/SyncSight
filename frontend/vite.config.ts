@@ -1,8 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// In Docker Compose the API runs at http://api:8000; locally at http://localhost:8000.
-const apiTarget = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
+// In Docker Compose the API runs at http://api:8000; locally at http://localhost:8010.
+const apiTarget = process.env.API_PROXY_TARGET ?? "http://localhost:8010";
 
 export default defineConfig({
   plugins: [react()],
