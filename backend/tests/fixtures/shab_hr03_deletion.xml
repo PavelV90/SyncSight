@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Synthetic HR03 (deletion) notice. Fictional company. -->
+<HR03:publication xmlns:HR03="https://shab.ch/shab/HR03-export">
+<meta>
+  <id>00000000-0000-0000-0000-000000000003</id>
+  <rubric>HR</rubric>
+  <subRubric>HR03</subRubric>
+  <language>de</language>
+  <publicationNumber>HR03-0000000003</publicationNumber>
+  <publicationState>PUBLISHED</publicationState>
+  <publicationDate>2026-10-20</publicationDate>
+  <cantons>ZH</cantons>
+</meta>
+<content>
+  <publicationText>Muster Handels GmbH in Liquidation, in Zürich. Die Gesellschaft wird gelöscht.</publicationText>
+  <commonsActual>
+    <company>
+      <name>Muster Handels GmbH in Liquidation</name>
+      <uid>CHE-000.000.003</uid>
+      <seat>Zürich</seat>
+      <legalForm>0107</legalForm>
+    </company>
+  </commonsActual>
+  <transaction>
+    <delete>
+      <deletionDate>2026-10-15</deletionDate>
+    </delete>
+  </transaction>
+</content>
+</HR03:publication>

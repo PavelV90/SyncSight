@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Synthetic HR01 (new registration) notice. Fictional company. -->
+<HR01:publication xmlns:HR01="https://shab.ch/shab/HR01-export">
+<meta>
+  <id>00000000-0000-0000-0000-000000000002</id>
+  <rubric>HR</rubric>
+  <subRubric>HR01</subRubric>
+  <language>fr</language>
+  <publicationNumber>HR01-0000000002</publicationNumber>
+  <publicationState>PUBLISHED</publicationState>
+  <publicationDate>2026-10-21</publicationDate>
+  <cantons>VD</cantons>
+</meta>
+<content>
+  <publicationText>Exemple Medtech SA, à Lausanne. Nouvelle inscription.</publicationText>
+  <commonsNew>
+    <company>
+      <name>Exemple Medtech SA</name>
+      <uid>CHE-000.000.002</uid>
+      <seat>Lausanne</seat>
+      <legalForm>0106</legalForm>
+    </company>
+    <purpose>Développement de dispositifs medtech.</purpose>
+    <capital>
+      <nominal>100000.00</nominal>
+    </capital>
+  </commonsNew>
+  <transaction>
+    <registration/>
+  </transaction>
+</content>
+</HR01:publication>
