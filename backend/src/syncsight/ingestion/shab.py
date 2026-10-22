@@ -173,6 +173,7 @@ def run(
             log.info("shab: %d notices stored", total)
     total += upsert_notices(session, batch)
     session.commit()
+    log.info("shab: done, %d new notices", total)
     return total
 
 

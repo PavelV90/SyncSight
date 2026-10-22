@@ -15,6 +15,37 @@ docker compose up --build
 - API: http://localhost:8010/docs
 - Postgres: `localhost:5433` (user/password `syncsight`)
 
+## Load data
+
+Start the database (`docker compose up -d db`), then from `backend/`:
+
+```bash
+uv run alembic upgrade head
+```
+
+```bash
+uv run syncsight-ingest zefix
+```
+
+```bash
+uv run syncsight-ingest swissmedic
+```
+
+```bash
+uv run syncsight-ingest shab --since 2026-10-01
+```
+
+```bash
+uv run syncsight-ingest shab-swissmedic
+```
+
+1. `zefix`: all active companies from Zefix via LINDAS, a few minutes. `--canton ZH` loads one canton.
+2. `swissmedic`: licensed pharma sites, linked to companies by name.
+3. `shab`: commercial-register notices in a date range (default: yesterday and today). `--uid CHE-…` fetches one company's full history.
+4. `shab-swissmedic`: full notice history of every company linked to a Swissmedic licence. This takes hours, at about 5 requests per second.
+
+Run `zefix` daily and `shab` daily to stay current. Sources and licences are listed in `ARCHITECTURE.md`.
+
 ## Checks
 
 ```bash
