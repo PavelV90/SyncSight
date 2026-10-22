@@ -23,10 +23,25 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx2>=2.16.0",
+    "mypy>=2.4.0",
     "pytest>=9.1.1",
+    "ruff>=0.17.1",
+    "types-defusedxml>=0.7.0.20260504",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
 markers = ["db: needs a running Postgres (docker compose up -d db)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests", "migrations"]

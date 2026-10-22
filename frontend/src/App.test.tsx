@@ -9,9 +9,11 @@ describe("App", () => {
   });
 
   it("shows API status and version from /api/health", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ status: "ok", version: "0.1.0" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: "ok", version: "0.1.0" }), { status: 200 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);

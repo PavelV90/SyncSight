@@ -10,8 +10,14 @@ pytestmark = pytest.mark.db
 def test_full_text_search_matches_purpose(db_session: Session) -> None:
     db_session.add_all(
         [
-            Company(uid="CHE-000.000.001", name="Alpenmed AG", purpose="Entwicklung von Medtech-Implantaten"),
-            Company(uid="CHE-000.000.002", name="Bergbeck GmbH", purpose="Herstellung von Backwaren"),
+            Company(
+                uid="CHE-000.000.001",
+                name="Alpenmed AG",
+                purpose="Entwicklung von Medtech-Implantaten",
+            ),
+            Company(
+                uid="CHE-000.000.002", name="Bergbeck GmbH", purpose="Herstellung von Backwaren"
+            ),
         ]
     )
     db_session.flush()
