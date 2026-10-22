@@ -25,7 +25,17 @@ SyncSight is a corporate intelligence platform that maps, screens and aggregates
 - Co-created by the founder (Pavel) and Claude as **lead software engineer and product architect**.
 - Claude's scope: system architecture, data ingestion pipelines, conversational LLM framework.
 
+## MVP scope (approved 2026-10-22)
+- **No LLM** in the MVP: search, filters and scoring. The chat assistant comes later.
+- **Sources:** Zefix (commercial register), SHAB/SOGC notices, Swissmedic establishment licences. Company reports deferred.
+- **Use cases:**
+  1. Leads: Swissmedic-licensed manufacturers (BS/BL/AG) with a board or management change in the last 90 days.
+  2. Investment targets: companies founded since 2020 with "medtech" in their purpose that raised capital in the last 12 months.
+  3. Health check: 5-year timeline of capital, auditor, seat, liquidation and bankruptcy events for a company.
+- Details and rationale: `ARCHITECTURE.md`.
+
 ## Constraints and considerations (to be refined)
+- **Zero cost:** only free/open-source software and free public data; no paid services (2026-10-22).
 - Commercial product; the repo is **private**, all rights reserved (no license).
 - Swiss/EU data protection (revDSG / GDPR); consider Swiss data residency.
 - Respect source terms of use and robots.txt when harvesting; prefer official and open sources (e.g. Zefix / commercial register, SHAB/SOGC, company websites, published reports).
