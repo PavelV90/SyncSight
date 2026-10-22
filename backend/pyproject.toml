@@ -3,7 +3,7 @@ name = "syncsight"
 version = "0.1.0"
 description = "SyncSight backend: API, database and ingestion pipelines"
 authors = [
-    { name = "paulvarava", email = "paul.varava@omescon.com" }
+    { name = "Paul Varava" }
 ]
 requires-python = ">=3.13"
 dependencies = [

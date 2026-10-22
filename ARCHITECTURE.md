@@ -54,7 +54,7 @@ Next:
 
 ## Decision log
 
-### D1 · 2026-10-22 · Private repository, no licence
+### D1 · 2026-10-22 · Private repository, no licence (visibility superseded by D10)
 - **Context:** commercial product.
 - **Options:** open source; private, all rights reserved.
 - **Choice:** private GitHub repo `PavelV90/SyncSight`, no licence; Python `.gitignore` template (extended for Node).
@@ -107,3 +107,9 @@ Next:
 - **Options:** Zefix, SHAB/SOGC, Swissmedic, UID register, company reports, other web scraping.
 - **Choice:** Zefix, SHAB/SOGC, Swissmedic. Company reports deferred. UID register not used (public service allows restricted single queries; Zefix already provides the UID).
 - **Consequence:** no financial statements for private companies. Retention and no-person-search rules apply to SHAB (see sources table). The SHAB portal terms need confirmation from SECO.
+
+### D10 · 2026-10-22 · Public repository, still no licence
+- **Context:** founder made the GitHub repo public.
+- **Options:** keep private; public without licence; public with an open-source licence.
+- **Choice:** public, no licence, so all rights stay reserved.
+- **Consequence:** code is visible but not licensed for reuse. Never commit secrets (Zefix credentials go in `.env`, which is gitignored) or harvested data. GitHub Actions minutes are free on public repos.

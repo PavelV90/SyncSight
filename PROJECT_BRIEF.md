@@ -36,7 +36,7 @@ SyncSight is a corporate intelligence platform that maps, screens and aggregates
 
 ## Constraints and considerations (to be refined)
 - **Zero cost:** only free/open-source software and free public data; no paid services (2026-10-22).
-- Commercial product; the repo is **private**, all rights reserved (no license).
+- Commercial product; the repo is **public** (since 2026-10-22) but all rights reserved (no license).
 - Swiss/EU data protection (revDSG / GDPR); consider Swiss data residency.
 - Respect source terms of use and robots.txt when harvesting; prefer official and open sources (e.g. Zefix / commercial register, SHAB/SOGC, company websites, published reports).
 - Answers must be **source-cited** and traceable to underlying documents.
