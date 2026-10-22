@@ -1,0 +1,32 @@
+[project]
+name = "syncsight"
+version = "0.1.0"
+description = "SyncSight backend: API, database and ingestion pipelines"
+authors = [
+    { name = "paulvarava", email = "paul.varava@omescon.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.1",
+    "defusedxml>=0.7.1",
+    "fastapi>=0.159.1",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.16.1",
+    "sqlalchemy>=2.1.6",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["db: needs a running Postgres (docker compose up -d db)"]

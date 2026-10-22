@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Synthetic HR02 (change) notice in the Amtsblattportal export format. Fictional company. -->
+<HR02:publication xmlns:HR02="https://shab.ch/shab/HR02-export">
+<meta>
+  <id>00000000-0000-0000-0000-000000000001</id>
+  <rubric>HR</rubric>
+  <subRubric>HR02</subRubric>
+  <language>de</language>
+  <publicationNumber>HR02-0000000001</publicationNumber>
+  <publicationState>PUBLISHED</publicationState>
+  <publicationDate>2026-10-22</publicationDate>
+  <cantons>BS</cantons>
+</meta>
+<content>
+  <journalDate>2026-10-19</journalDate>
+  <publicationText>Kapitalerhöhung. Aktienkapital neu: CHF 500'000.</publicationText>
+  <commonsNew>
+    <company>
+      <name>Beispiel Pharma AG</name>
+      <uid>CHE-000.000.001</uid>
+      <seat>Basel</seat>
+      <legalForm>0106</legalForm>
+    </company>
+    <capital>
+      <nominal>500000.00</nominal>
+      <paid>500000.00</paid>
+    </capital>
+  </commonsNew>
+  <transaction>
+    <update>
+      <changements>
+        <others>false</others>
+        <nameChanged>false</nameChanged>
+        <uidChanged>false</uidChanged>
+        <legalStatusChanged>false</legalStatusChanged>
+        <seatChanged>false</seatChanged>
+        <addressChanged>false</addressChanged>
+        <purposeChanged>false</purposeChanged>
+        <capitalChanged>
+          <nominal>true</nominal>
+          <paid>true</paid>
+          <other>false</other>
+        </capitalChanged>
+        <statusChanged>
+          <bankruptcy>
+            <dissolution>false</dissolution>
+            <cancellation>false</cancellation>
+          </bankruptcy>
+          <liquidation>
+            <dissolution>
+              <nonExceptional>false</nonExceptional>
+            </dissolution>
+            <revocation>false</revocation>
+          </liquidation>
+        </statusChanged>
+      </changements>
+    </update>
+  </transaction>
+</content>
+</HR02:publication>
