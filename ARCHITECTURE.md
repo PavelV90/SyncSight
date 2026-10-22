@@ -1,6 +1,6 @@
 # SyncSight — Architecture
 
-> Living document. Status: **MVP scaffold** (2026-10-22). Every architecture decision goes into the [decision log](#decision-log).
+> Living document. Status: **MVP ingestion** (2026-10-22). Every architecture decision goes into the [decision log](#decision-log).
 
 ## Overview
 
@@ -16,7 +16,7 @@ MVP = search, filters and scoring over free official Swiss data. **No LLM, CHF 0
 
 | Layer | Tech | Code |
 |---|---|---|
-| Ingestion | Python 3.13, defusedxml; one module per source | `backend/src/syncsight/ingestion/` |
+| Ingestion | Python 3.13, httpx2, defusedxml, openpyxl; one module per source; CLI `syncsight-ingest` | `backend/src/syncsight/ingestion/` |
 | Storage | PostgreSQL 18, SQLAlchemy 2, Alembic; full-text search (`simple` config, multilingual) | `backend/src/syncsight/db/`, `backend/migrations/` |
 | API | FastAPI | `backend/src/syncsight/api/` |
 | UI | React 19 + TypeScript + Vite (SPA) | `frontend/` |
@@ -28,9 +28,9 @@ Entity key: the company **UID** (`CHE-xxx.xxx.xxx`). Sources without a UID (Swis
 
 | Source | Access | Licence / legal basis | Rules we follow |
 |---|---|---|---|
-| [Zefix](https://www.zefix.admin.ch/ZefixPublicREST/v3/api-docs): name, UID, legal form, seat, purpose, capital, auditor, status | REST (free credentials, HTTP Basic); bulk via [LINDAS SPARQL](https://opendata.swiss/en/dataset/zefix-zentraler-firmenindex) | OGD "open use, must provide the source"; [HRegV Art. 14](https://www.fedlex.admin.ch/eli/cc/2007/686/de#art_14), [OR Art. 936](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_936) | Attribute the source |
-| [SHAB/SOGC](https://www.amtsblattportal.ch/api/v1/publications) notices: register changes, liquidations, bankruptcies | Public REST API, XML per notice | Public register data; personal data generally accessible ([revDSG Art. 30(3)](https://www.fedlex.admin.ch/eli/cc/2022/491/de#art_30)); portal terms of use to be confirmed with SECO | Delete personal-data notices when SHAB stops showing them, e.g. bankruptcies after 5 years ([VSHAB Art. 11](https://www.fedlex.admin.ch/eli/cc/2006/78/de#art_11)); no search by person name |
-| [Swissmedic establishment licences](https://opendata.swiss/en/dataset/betriebsbewilligungen): ~1,270 pharma sites, activities, last inspection, compliance | XLSX download | OGD "open use" | Attribute the source |
+| [Zefix](https://www.zefix.admin.ch/ZefixPublicREST/v3/api-docs): name, UID, legal form, seat, purpose, capital, auditor, status Bulk: [LINDAS SPARQL](https://opendata.swiss/en/dataset/zefix-zentraler-firmenindex), one CSV query per canton (~796k active companies, 5 min). Details: REST (free credentials, not used yet) | OGD "open use, must provide the source"; [HRegV Art. 14](https://www.fedlex.admin.ch/eli/cc/2007/686/de#art_14), [OR Art. 936](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_936) | Attribute the source |
+| [SHAB/SOGC](https://www.amtsblattportal.ch/api/v1/publications) notices: register changes, liquidations, bankruptcies | Public REST API: list by date range or keyword (a UID gives one company's history), then one XML per notice; 0.2 s between requests. Rubric HR only | Public register data; personal data generally accessible ([revDSG Art. 30(3)](https://www.fedlex.admin.ch/eli/cc/2022/491/de#art_30)); portal terms of use to be confirmed with SECO Notice text is never full-text indexed; no search by person name. HR notices stay public (register, [OR Art. 936](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_936)). Delete a notice once the portal withdraws it; bankruptcy-office notices (rubric KK, not ingested) only for 5 years ([VSHAB Art. 11](https://www.fedlex.admin.ch/eli/cc/2006/78/de#art_11)) |
+| [Swissmedic establishment licences](https://opendata.swiss/en/dataset/betriebsbewilligungen): ~1,270 pharma sites, activities, last inspection, compliance | XLSX download, full snapshot each run; holders linked to companies by normalised name (postal code breaks ties) | OGD "open use" | Attribute the source |
 
 Deferred: **company reports**. Only listed companies and bond issuers must publish accounts ([OR Art. 958e](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_958_e)). Copying reports wholesale risks [URG](https://www.fedlex.admin.ch/eli/cc/1993/1798_1798_1798/de#art_24_d) and [UWG Art. 5c](https://www.fedlex.admin.ch/eli/cc/1988/223_223_223/de#art_5). Links and individual facts are fine.
 
@@ -44,13 +44,20 @@ Deferred: **company reports**. Only listed companies and bond issuers must publi
 
 ## Current state and next steps
 
-Done: skeleton per layer with tests (`/api/health`, `company` table with full-text search, SHAB change-flag parser), Docker Compose, CI.
+Done:
+- Skeleton per layer, Docker Compose, CI.
+- Ingestion (`syncsight-ingest`, see README):
+  - Zefix: all 795,744 active companies.
+  - SHAB: daily pull, plus per-company history.
+  - Swissmedic: 1,271 sites, 949 of 997 holders linked.
+- Tables `company`, `sogc_notice`, `swissmedic_site`.
 
 Next:
-1. Ingestion jobs: Zefix bulk load (LINDAS) + per-UID details (REST), SHAB daily pull, Swissmedic import with name/address matching.
-2. Tables `sogc_notice` and `swissmedic_site`, plus retention cleanup for personal-data notices.
-3. Search API and UI for the three use cases. Board changes come from rule-based parsing of the notice text.
-4. Later: LLM chat on top (see D5), company reports (see D9).
+1. Backfill: `shab-swissmedic` (history of licensed companies), then daily `zefix` + `shab` runs.
+2. Rule-based parsing of the notice text: board and management changes, auditor changes. These are mostly labelled `other` today.
+3. Search API and UI for the three use cases.
+4. Retention job: delete notices the portal no longer serves.
+5. Later: Zefix REST for founding date and capital of companies without SHAB history; LLM chat (D5); company reports (D9).
 
 ## Decision log
 
@@ -113,3 +120,21 @@ Next:
 - **Options:** keep private; public without licence; public with an open-source licence.
 - **Choice:** public, no licence, so all rights stay reserved.
 - **Consequence:** code is visible but not licensed for reuse. Never commit secrets (Zefix credentials go in `.env`, which is gitignored) or harvested data. GitHub Actions minutes are free on public repos.
+
+### D11 · 2026-10-22 · Zefix bulk load via LINDAS, one query per canton
+- **Context:** need all active companies with purpose and address. The Zefix REST API needs credentials and works per company.
+- **Options:** Zefix REST; LINDAS with ORDER BY/OFFSET paging (60–80 s per 10k rows); LINDAS one CSV query per canton.
+- **Choice:** one CSV query per canton, plus one for entities without a canton; upsert. After a full run, entities missing from it are marked `inactive`.
+- **Consequence:** full load in about 5 minutes. LINDAS has no founding date, capital or history; those come from SHAB (later Zefix REST).
+
+### D12 · 2026-10-22 · SHAB: daily pull plus targeted company histories
+- **Context:** the list API returns metadata only. About 1,000 HR notices per day; 2.3M in the archive (since late 2019).
+- **Options:** full archive backfill (days of requests); daily pull plus history only for companies of interest.
+- **Choice:** daily pull by date range, plus full history per company via `keyword=<UID>`; 0.2 s between requests; skip stored notices.
+- **Consequence:** polite load, at most about 5 requests/s. Founding date and capital history exist only for companies whose history was fetched or that changed after pulls started.
+
+### D13 · 2026-10-22 · Swissmedic holders linked by exact normalised name
+- **Context:** the licence list has no UID; holder names follow the commercial register.
+- **Options:** fuzzy matching; exact normalised name with a postal-code tie-break; manual mapping.
+- **Choice:** exact normalised name (case, quotes, spacing ignored); postal code decides between namesakes; otherwise unlinked.
+- **Consequence:** precision over recall: 949 of 997 holders linked. The unlinked ones are mostly public bodies (not in the register) or names with extra address text.
