@@ -106,3 +106,31 @@ def test_redirect_loop_is_skipped_not_raised() -> None:
     client = httpx2.Client(transport=httpx2.MockTransport(handler), follow_redirects=True)
 
     assert crawl_site(Fetcher(client, delay=0), "https://www.loop.ch/") == []
+
+
+def test_sitemap_adds_newest_news_pages() -> None:
+    sitemap = b"""<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url><loc>https://www.beta.ch/products/a</loc><lastmod>2026-09-01</lastmod></url>
+    <url><loc>https://www.beta.ch/news/2026-mes-go-live</loc><lastmod>2026-08-01</lastmod></url>
+    </urlset>"""
+    pages = {
+        "https://www.beta.ch/": "<html><body>Beta AG</body></html>",
+        "https://www.beta.ch/news/2026-mes-go-live": "<html><body>New MES live.</body></html>",
+    }
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        url = str(request.url)
+        if url.endswith("/robots.txt"):
+            return httpx2.Response(200, text="Sitemap: https://www.beta.ch/sitemap.xml\n")
+        if url.endswith("/sitemap.xml"):
+            return httpx2.Response(200, content=sitemap)
+        if url in pages:
+            return httpx2.Response(200, text=pages[url], headers={"content-type": "text/html"})
+        return httpx2.Response(404)
+
+    fetcher = Fetcher(httpx2.Client(transport=httpx2.MockTransport(handler)), delay=0)
+
+    [hit] = crawl_site(fetcher, "https://www.beta.ch/")
+    assert (hit.url, hit.kind, hit.labels) == (
+        "https://www.beta.ch/news/2026-mes-go-live", "news", frozenset({"mes"}),
+    )  # fmt: skip

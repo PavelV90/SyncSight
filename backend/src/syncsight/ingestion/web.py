@@ -10,6 +10,7 @@ import re
 import unicodedata
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import httpx2
@@ -34,6 +35,14 @@ _GENERIC = {
     "et", "e", "in", "liquidation", "schweiz", "suisse", "svizzera", "switzerland", "swiss",
     "holding", "the", "de", "la", "le", "les", "der", "die", "das",
 }  # fmt: skip
+
+
+@dataclass(frozen=True)
+class CompanyRef:
+    uid: str
+    name: str
+
+
 _IMPRINT = re.compile(r"impressum|imprint|legal|mentions|note legali|disclaimer|contact|kontakt")
 
 
@@ -50,7 +59,7 @@ def candidate_urls(company_name: str) -> list[str]:
     return [f"https://www.{stem}.{tld}" for stem in unique for tld in ("ch", "com")]
 
 
-def identifies(text: str, company: Company) -> str | None:
+def identifies(text: str, company: "CompanyRef | Company") -> str | None:
     """'uid' or 'name' if the text identifies the company, else None."""
     digits = company.uid.replace("CHE-", "").replace(".", "")
     uid_pattern = rf"CHE[-\s]?{digits[:3]}[.\s]?{digits[3:6]}[.\s]?{digits[6:]}"
@@ -59,7 +68,7 @@ def identifies(text: str, company: Company) -> str | None:
     return "name" if name_key(company.name) in name_key(text) else None
 
 
-def verify(fetcher: Fetcher, url: str, company: Company) -> tuple[str, str] | None:
+def verify(fetcher: Fetcher, url: str, company: "CompanyRef | Company") -> tuple[str, str] | None:
     """(homepage URL, evidence) if the homepage or its imprint/contact page names the company."""
     response = fetcher.get(url)
     if response is None or "html" not in response.headers.get("content-type", ""):
@@ -128,11 +137,15 @@ def resolve_websites(
     for uid, (url, source) in registry.items():
         _save_website(session, uid, url, source, None)
     session.commit()
-    companies = list(
-        session.scalars(
-            select(Company).where(Company.uid.in_([u for u in todo if u not in registry]))
+    # plain values for the worker threads: ORM objects must not cross threads
+    companies = [
+        CompanyRef(uid, name)
+        for uid, name in session.execute(
+            select(Company.uid, Company.name).where(
+                Company.uid.in_([u for u in todo if u not in registry])
+            )
         )
-    )
+    ]
     found = len(registry)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for i, (company, result) in enumerate(
@@ -193,7 +206,7 @@ def _save_website(
     session.execute(stmt.on_conflict_do_update(index_elements=["company_uid"], set_=row))
 
 
-def _guess(company: Company) -> tuple[str, str] | None:
+def _guess(company: CompanyRef) -> tuple[str, str] | None:
     try:
         with make_client(timeout=20) as client:
             fetcher = Fetcher(client)

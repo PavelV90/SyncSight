@@ -153,6 +153,15 @@ class Robots:
         self._client = client
         self._parsers: dict[str, urllib.robotparser.RobotFileParser | bool] = {}
 
+    def sitemaps(self, url: str) -> list[str]:
+        """Sitemap URLs declared in the host's robots.txt (default: /sitemap.xml)."""
+        parts = urlsplit(url)
+        host = f"{parts.scheme}://{parts.netloc}"
+        self.allowed(url)
+        rules = self._parsers.get(host)
+        declared = rules.site_maps() if not isinstance(rules, bool) and rules else None
+        return list(declared or [f"{host}/sitemap.xml"])
+
     def allowed(self, url: str) -> bool:
         parts = urlsplit(url)
         host = f"{parts.scheme}://{parts.netloc}"
@@ -237,15 +246,60 @@ def crawl_site(fetcher: Fetcher, home_url: str, max_pages: int = MAX_PAGES) -> l
             page = visit(section.url, kind)
             if page is None:
                 continue
-            section_host = urlsplit(page.url).netloc
-            children = [
-                link.url for link in page.links
-                if urlsplit(link.url).netloc == section_host
-                and len(urlsplit(link.url).path) > len(urlsplit(page.url).path)
-            ]  # fmt: skip
-            for child in children[:8]:
+            for child in _children(page)[:8]:
                 visit(child, kind)
+    for url, kind in _sitemap_pages(fetcher, home.url, seen, max_pages):
+        visit(url, kind)
     return list(hits.values())
+
+
+def _children(page: Page) -> list[str]:
+    """Links below the section's own path, e.g. /medien.html -> /medien/2026-neues-werk.html."""
+    section = urlsplit(page.url)
+    prefix = re.sub(r"\.\w+$", "", section.path.rstrip("/")) + "/"
+    children = [urlsplit(link.url) for link in page.links]
+    return [
+        child.geturl()
+        for child in children
+        if child.netloc == section.netloc and child.path.startswith(prefix)
+    ]
+
+
+def _sitemap_pages(
+    fetcher: Fetcher, home_url: str, seen: set[str], max_pages: int, limit: int = 10
+) -> list[tuple[str, str]]:
+    """Newest news and career URLs listed in the site's sitemaps (one level of sitemap index)."""
+    entries: list[tuple[str, str]] = []
+    queue = fetcher.robots.sitemaps(home_url)[:3]
+    for depth in range(2):
+        nested: list[str] = []
+        for sitemap_url in queue:
+            if sitemap_url in seen or len(seen) >= max_pages:
+                continue
+            seen.add(sitemap_url)
+            response = fetcher.get(sitemap_url)
+            if response is None:
+                continue
+            try:
+                root = ElementTree.fromstring(response.content)
+            except ElementTree.ParseError:
+                continue
+            for node in root:
+                tag = node.tag.rsplit("}", 1)[-1]
+                loc = next((c.text or "" for c in node if c.tag.endswith("loc")), "").strip()
+                lastmod = next((c.text or "" for c in node if c.tag.endswith("lastmod")), "")
+                if tag == "sitemap" and depth == 0 and (NEWS.search(loc) or CAREER.search(loc)):
+                    nested.append(loc)
+                elif tag == "url" and loc:
+                    entries.append((lastmod, loc))
+        queue = nested[:3]
+    pages = []
+    for _, loc in sorted(entries, reverse=True):
+        path = urlsplit(loc).path
+        kind = "news" if NEWS.search(path) else "career" if CAREER.search(path) else None
+        if kind and loc not in seen:
+            pages.append((loc, kind))
+    return pages[:limit]
 
 
 def _feed_hits(fetcher: Fetcher, url: str, seen: set[str], max_pages: int) -> Iterator[Hit]:
