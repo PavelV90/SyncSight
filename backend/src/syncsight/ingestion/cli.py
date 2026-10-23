@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from syncsight.db.session import make_engine
-from syncsight.ingestion import medicines, permits, shab, swissmedic, zefix_lindas
+from syncsight.ingestion import medicines, permits, shab, swissmedic, web, zefix_lindas
 from syncsight.ingestion.http import make_client
 from syncsight.ingestion.normalize import normalize_uid
 
@@ -36,6 +36,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         elif args.source == "permits":
             targets = args.uid or swissmedic.matched_uids(session)
             permits.run(session, client, targets, since=args.since, delay=args.delay)
+        elif args.source in ("websites", "crawl"):
+            targets = args.uid or swissmedic.matched_uids(session)
+            if args.source == "websites":
+                web.resolve_websites(session, client, targets)
+            else:
+                web.crawl(session, targets)
         elif args.source == "medicines":
             medicines.run(session, client)
         elif args.source == "reclassify":
@@ -82,6 +88,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     building.add_argument("--uid", action="append", type=_uid, help="repeatable")
     building.add_argument("--delay", type=float, default=0.2, help="seconds between requests")
+    for name, text in (
+        ("websites", "find and verify websites of Swissmedic-licensed companies (or --uid)"),
+        ("crawl", "scan their websites, feeds and career pages for MES keywords (or --uid)"),
+    ):
+        sources.add_parser(name, help=text).add_argument(
+            "--uid", action="append", type=_uid, help="repeatable"
+        )
     sources.add_parser("match", help="re-match Swissmedic licence holders to companies")
     sources.add_parser("reclassify", help="re-apply SHAB text rules to stored notices")
     return parser

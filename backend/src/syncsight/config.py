@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SYNCSIGHT_", env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://syncsight:syncsight@localhost:5433/syncsight"
+    # Domains the crawler must never visit (e.g. after an opt-out request), JSON list
+    crawl_blocklist: list[str] = []
 
 
 @lru_cache
