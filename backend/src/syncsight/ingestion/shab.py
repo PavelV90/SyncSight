@@ -10,7 +10,7 @@ import html
 import logging
 import re
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass
 from datetime import date
 from decimal import Decimal
@@ -101,7 +101,7 @@ def parse_notice(xml: bytes) -> ShabNotice:
     company = commons.find("company") if commons is not None else None
     capital = _text(commons, "capital/nominal")
     cantons = [c.text for c in root.findall("meta/cantons") if c.text]
-    text = _plain_text(_text(content, "publicationText"))
+    text = plain_text(_text(content, "publicationText"))
     company_name = _text(company, "name")
     purpose = _text(commons, "purpose")
     changes = _changes(content.find("transaction") if content is not None else None)
@@ -129,7 +129,7 @@ def text_labels(
     """Board, management and auditor changes named in the notice text."""
     if not text:
         return frozenset()
-    for known in (_plain_text(purpose), company_name):
+    for known in (plain_text(purpose), company_name):
         if known:
             text = text.replace(known, " ")
     return frozenset(label for label, rule in _TEXT_RULES.items() if rule.search(text))
@@ -163,13 +163,14 @@ def list_notice_ids(
     since: date | None = None,
     until: date | None = None,
     keyword: str | None = None,
+    sub_rubrics: Sequence[str] = (),
 ) -> Iterator[str]:
-    """IDs of published HR notices in a date range and/or matching a keyword (e.g. a UID)."""
-    params: dict[str, Any] = {
-        "publicationStates": "PUBLISHED",
-        "rubrics": "HR",
-        "pageRequest.size": PAGE_SIZE,
-    }
+    """IDs of published notices (default: rubric HR) by date range, keyword and sub-rubrics."""
+    params: dict[str, Any] = {"publicationStates": "PUBLISHED", "pageRequest.size": PAGE_SIZE}
+    if sub_rubrics:
+        params["subRubrics"] = list(sub_rubrics)
+    else:
+        params["rubrics"] = "HR"
     if since:
         params["publicationDate.start"] = since.isoformat()
     if until:
@@ -268,8 +269,8 @@ def _text(element: Element | None, path: str) -> str | None:
     return value.strip() or None if value else None
 
 
-def _plain_text(markup: str | None) -> str | None:
-    """publicationText carries HTML markup; keep readable text only."""
+def plain_text(markup: str | None) -> str | None:
+    """Notice fields carry HTML markup; keep readable text only."""
     if not markup:
         return None
     text = html.unescape(re.sub(r"<[^>]+>", " ", markup))

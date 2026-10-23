@@ -1,4 +1,5 @@
 import io
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -6,7 +7,7 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from syncsight.db.models import Company, SwissmedicSite
+from syncsight.db.models import Company, SwissmedicSite, SwissmedicSiteChange
 from syncsight.ingestion import swissmedic
 from syncsight.ingestion.swissmedic import parse_workbook
 
@@ -104,3 +105,25 @@ def test_match_companies_by_name_then_postal_code(db_session: Session) -> None:
     )
     assert links == {"500-1": "CHE-000.000.001", "500-2": "CHE-000.000.003", "500-3": None}
     assert swissmedic.matched_uids(db_session) == ["CHE-000.000.001", "CHE-000.000.003"]
+
+
+@pytest.mark.db
+def test_second_snapshot_records_changes(db_session: Session) -> None:
+    first = parse_workbook(_workbook(_site("500-1", "Alpenmed AG", "4051", 1.0)))
+    swissmedic.replace_sites(db_session, first)
+    changed = replace(
+        first[0], activity_codes=[1, 2], compliance_status="COMPLIANCE_MANAGEMENT_ACTION"
+    )
+    added = replace(first[0], site_number="2", site_name="Neues Werk")
+
+    swissmedic.replace_sites(db_session, [changed, added])
+
+    changes = db_session.scalars(
+        select(SwissmedicSiteChange).order_by(SwissmedicSiteChange.kind)
+    ).all()
+    assert [(c.site_number, c.kind) for c in changes] == [
+        ("1", "activity_added"),
+        ("1", "compliance_changed"),
+        ("2", "site_added"),
+    ]
+    assert changes[0].detail == "Alpenmed AG, Basel: Import"

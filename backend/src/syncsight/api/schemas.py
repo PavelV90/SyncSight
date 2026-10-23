@@ -7,19 +7,8 @@ from pydantic import BaseModel
 
 from syncsight.db.models import Company, SogcNotice, SwissmedicSite
 from syncsight.ingestion.shab import PUBLIC_URL
+from syncsight.ingestion.swissmedic import ACTIVITIES
 from syncsight.legal_forms import LEGAL_FORMS
-
-# Swissmedic licence activities (column headers of the export, translated)
-ACTIVITIES = {
-    1: "Manufacturing",
-    2: "Import",
-    3: "API manufacturing",
-    4: "Wholesale",
-    5: "Export",
-    6: "Trade abroad",
-    7: "Broker or agent",
-    8: "Blood products",
-}
 
 
 class CompanySummary(BaseModel):

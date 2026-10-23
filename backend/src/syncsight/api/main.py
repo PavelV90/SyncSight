@@ -16,6 +16,7 @@ from syncsight.db.models import Company
 from syncsight.db.session import make_engine
 from syncsight.ingestion.normalize import normalize_uid
 from syncsight.ingestion.shab import PUBLIC_URL
+from syncsight.ingestion.swissmedic import ACTIVITIES
 
 app = FastAPI(title="SyncSight API", version=__version__)
 
@@ -102,9 +103,7 @@ def swissmedic_leads(
         schemas.Lead(
             company=schemas.CompanySummary.of(lead.company),
             site_cantons=lead.site_cantons,
-            activities=[
-                schemas.ACTIVITIES[c] for c in lead.activity_codes if c in schemas.ACTIVITIES
-            ],
+            activities=[ACTIVITIES[c] for c in lead.activity_codes if c in ACTIVITIES],
             last_change=lead.notices[0].publication_date,
             notices=[schemas.Notice.of(n) for n in lead.notices],
         )

@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from syncsight.db.session import make_engine
-from syncsight.ingestion import shab, swissmedic, zefix_lindas
+from syncsight.ingestion import medicines, permits, shab, swissmedic, zefix_lindas
 from syncsight.ingestion.http import make_client
 from syncsight.ingestion.normalize import normalize_uid
 
@@ -33,6 +33,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 shab.run(session, client, keyword=uid, delay=args.delay)
         elif args.source == "swissmedic":
             swissmedic.run(session, client)
+        elif args.source == "permits":
+            targets = args.uid or swissmedic.matched_uids(session)
+            permits.run(session, client, targets, since=args.since, delay=args.delay)
+        elif args.source == "medicines":
+            medicines.run(session, client)
         elif args.source == "reclassify":
             changed = shab.reclassify(session)
             logging.info("shab: %d notices relabelled", changed)
@@ -67,6 +72,16 @@ def _parser() -> argparse.ArgumentParser:
     history.add_argument("--delay", type=float, default=0.2, help="seconds between requests")
 
     sources.add_parser("swissmedic", help="Swissmedic establishment licences (full snapshot)")
+    sources.add_parser("medicines", help="Swissmedic authorised medicinal products (snapshot)")
+
+    building = sources.add_parser(
+        "permits", help="building permits filed by Swissmedic-licensed companies (or --uid)"
+    )
+    building.add_argument(
+        "--since", type=date.fromisoformat, default=date.today() - timedelta(days=730)
+    )
+    building.add_argument("--uid", action="append", type=_uid, help="repeatable")
+    building.add_argument("--delay", type=float, default=0.2, help="seconds between requests")
     sources.add_parser("match", help="re-match Swissmedic licence holders to companies")
     sources.add_parser("reclassify", help="re-apply SHAB text rules to stored notices")
     return parser

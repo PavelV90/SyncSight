@@ -8,7 +8,6 @@ import io
 import logging
 import re
 import warnings
-from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
@@ -20,8 +19,9 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from syncsight.db.models import Company, SwissmedicSite
+from syncsight.db.models import SwissmedicSite, SwissmedicSiteChange
 from syncsight.ingestion import http
+from syncsight.ingestion.matching import link_by_name
 from syncsight.ingestion.normalize import name_key
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,17 @@ _COLUMNS = {
     "Compliance-Status Standort": "compliance_status",
 }
 _ACTIVITY_HEADER = re.compile(r"^([1-8]) ")  # "1 Herstellung", ..., "8 Blut und labile ..."
+# Licence activities (export column headers, translated)
+ACTIVITIES = {
+    1: "Manufacturing",
+    2: "Import",
+    3: "API manufacturing",
+    4: "Wholesale",
+    5: "Export",
+    6: "Trade abroad",
+    7: "Broker or agent",
+    8: "Blood products",
+}
 
 
 @dataclass(frozen=True)
@@ -97,7 +108,12 @@ def download(client: httpx2.Client) -> bytes:
 
 
 def replace_sites(session: Session, records: Sequence[SiteRecord]) -> int:
-    """The export is a full snapshot: replace all rows."""
+    """The export is a full snapshot: record what changed since the last one, then replace it."""
+    previous = {
+        (s.licence_number, s.site_number): s for s in session.scalars(select(SwissmedicSite))
+    }
+    if previous:
+        session.add_all(diff_sites(previous, records, detected_on=date.today()))
     session.execute(delete(SwissmedicSite))
     rows = [asdict(r) | {"holder_name_key": name_key(r.holder_name)} for r in records]
     if rows:
@@ -105,33 +121,72 @@ def replace_sites(session: Session, records: Sequence[SiteRecord]) -> int:
     return len(rows)
 
 
+def diff_sites(
+    previous: dict[tuple[str, str], SwissmedicSite],
+    records: Sequence[SiteRecord],
+    detected_on: date,
+) -> list[SwissmedicSiteChange]:
+    """Sites added or removed, activities added or removed, compliance status changed."""
+    changes = []
+
+    def change(record: SiteRecord | SwissmedicSite, kind: str, detail: str) -> None:
+        changes.append(
+            SwissmedicSiteChange(
+                detected_on=detected_on,
+                licence_number=record.licence_number,
+                site_number=record.site_number,
+                company_uid=previous[key].company_uid if key in previous else None,
+                kind=kind,
+                detail=detail,
+            )
+        )
+
+    current = {(r.licence_number, r.site_number): r for r in records}
+    for key, record in current.items():
+        old = previous.get(key)
+        place = f"{record.site_name}, {record.site_locality}"
+        if old is None:
+            change(record, "site_added", f"{place}: {_activity_names(record.activity_codes)}")
+            continue
+        if added := set(record.activity_codes) - set(old.activity_codes):
+            change(record, "activity_added", f"{place}: {_activity_names(added)}")
+        if removed := set(old.activity_codes) - set(record.activity_codes):
+            change(record, "activity_removed", f"{place}: {_activity_names(removed)}")
+        if record.compliance_status != old.compliance_status:
+            detail = f"{place}: {old.compliance_status} → {record.compliance_status}"
+            change(record, "compliance_changed", detail)
+    for key, old in previous.items():
+        if key not in current:
+            change(old, "site_removed", f"{old.site_name}, {old.site_locality}")
+    return changes
+
+
 def match_companies(session: Session) -> int:
     """Link holders to the one active company with the same name (postal code breaks ties)."""
     holders = session.execute(
         select(SwissmedicSite.holder_name_key, SwissmedicSite.holder_postal_code).distinct()
     ).all()
-    keys = {key for key, _ in holders}
-    candidates: dict[str, list[tuple[str, str | None]]] = defaultdict(list)
-    for uid, company_key, company_postal_code in session.execute(
-        select(Company.uid, Company.name_key, Company.postal_code).where(
-            Company.name_key.in_(keys), Company.status == "active"
-        )
-    ):
-        if company_key:
-            candidates[company_key].append((uid, company_postal_code))
-    matched = 0
-    for key, postal_code in holders:
-        company_uid = _pick(candidates.get(key, []), postal_code)
+    links = link_by_name(session, ((key, plz) for key, plz in holders))
+    session.execute(update(SwissmedicSite).values(company_uid=None))
+    unlinked_changes = SwissmedicSiteChange.company_uid.is_(None)
+    for (key, postal_code), uid in links.items():
         session.execute(
             update(SwissmedicSite)
             .where(
                 SwissmedicSite.holder_name_key == key,
                 SwissmedicSite.holder_postal_code.is_not_distinct_from(postal_code),
             )
-            .values(company_uid=company_uid)
+            .values(company_uid=uid)
         )
-        matched += company_uid is not None
-    return matched
+    # changes detected before the site was linked inherit the link
+    session.execute(
+        update(SwissmedicSiteChange)
+        .where(
+            unlinked_changes, SwissmedicSiteChange.licence_number == SwissmedicSite.licence_number
+        )
+        .values(company_uid=SwissmedicSite.company_uid)
+    )
+    return len(links)
 
 
 def run(session: Session, client: httpx2.Client) -> tuple[int, int]:
@@ -141,14 +196,6 @@ def run(session: Session, client: httpx2.Client) -> tuple[int, int]:
     session.commit()
     log.info("swissmedic: %d sites, %d holders matched to companies", stored, matched)
     return stored, matched
-
-
-def _pick(candidates: Iterable[tuple[str, str | None]], postal_code: str | None) -> str | None:
-    candidates = list(candidates)
-    if len(candidates) == 1:
-        return candidates[0][0]
-    same_place = [uid for uid, plz in candidates if plz and plz == postal_code]
-    return same_place[0] if len(same_place) == 1 else None
 
 
 def _record(row: dict[str | None, Any]) -> SiteRecord:
@@ -207,3 +254,7 @@ def matched_uids(session: Session) -> list[str]:
             .order_by(SwissmedicSite.company_uid)
         )
     )
+
+
+def _activity_names(codes: Iterable[int]) -> str:
+    return ", ".join(ACTIVITIES.get(code, str(code)) for code in sorted(codes))
