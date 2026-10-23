@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import Subquery, func, select
 from sqlalchemy.orm import Session
 
 from syncsight.db.models import SEARCH_CONFIG, Company, SogcNotice, SwissmedicSite
@@ -135,22 +135,7 @@ def investment_targets(
         .group_by(SogcNotice.company_uid)
         .subquery()
     )
-    capitals = (
-        select(
-            SogcNotice.id,
-            SogcNotice.company_uid,
-            SogcNotice.publication_date,
-            SogcNotice.capital_nominal,
-            func.lag(SogcNotice.capital_nominal)
-            .over(
-                partition_by=SogcNotice.company_uid,
-                order_by=(SogcNotice.publication_date, SogcNotice.publication_number),
-            )
-            .label("previous"),
-        )
-        .where(SogcNotice.capital_nominal.is_not(None))
-        .subquery()
-    )
+    capitals = _capitals()
     tsquery = func.websearch_to_tsquery(SEARCH_CONFIG, query)
     rows = session.execute(
         select(
@@ -177,3 +162,44 @@ def investment_targets(
             company.uid, Target(company, founded_on, raised_on, before, after, notice_id)
         )
     return list(targets.values())
+
+
+def investment_targets_raises(
+    session: Session, uids: Collection[str], since: date
+) -> list[tuple[str, date, Decimal, Decimal, str]]:
+    """(uid, date, capital before, capital after, notice id) of capital increases since `since`."""
+    capitals = _capitals()
+    rows = session.execute(
+        select(
+            capitals.c.company_uid,
+            capitals.c.publication_date,
+            capitals.c.previous,
+            capitals.c.capital_nominal,
+            capitals.c.id,
+        ).where(
+            capitals.c.company_uid.in_(list(uids)),
+            capitals.c.publication_date >= since,
+            capitals.c.capital_nominal > capitals.c.previous,
+        )
+    )
+    return [(uid, on, before, after, notice_id) for uid, on, before, after, notice_id in rows]
+
+
+def _capitals() -> Subquery:
+    """Each notice's stated capital next to the capital stated in the company's previous notice."""
+    return (
+        select(
+            SogcNotice.id,
+            SogcNotice.company_uid,
+            SogcNotice.publication_date,
+            SogcNotice.capital_nominal,
+            func.lag(SogcNotice.capital_nominal)
+            .over(
+                partition_by=SogcNotice.company_uid,
+                order_by=(SogcNotice.publication_date, SogcNotice.publication_number),
+            )
+            .label("previous"),
+        )
+        .where(SogcNotice.capital_nominal.is_not(None))
+        .subquery()
+    )

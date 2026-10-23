@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from syncsight import __version__
 from syncsight.api import schemas
-from syncsight.db import queries
+from syncsight.db import mes, queries
 from syncsight.db.models import Company
 from syncsight.db.session import make_engine
 from syncsight.ingestion.normalize import normalize_uid
@@ -135,6 +135,28 @@ def investment_targets(
             notice_url=PUBLIC_URL.format(id=t.notice_id),
         )
         for t in targets
+    ]
+
+
+@app.get("/api/mes-leads")
+def mes_leads(
+    session: DbSession,
+    months: Annotated[int, Query(ge=1, le=120)] = 24,
+    cantons: Annotated[list[str], Query()] = [],  # noqa: B006
+    min_score: Annotated[int, Query(ge=0)] = 1,
+) -> list[schemas.MesLead]:
+    """Licensed manufacturers ranked by MES signals, each point backed by evidence."""
+    leads = mes.mes_leads(session, months=months, cantons=cantons, min_score=min_score)
+    return [
+        schemas.MesLead(
+            company=schemas.CompanySummary.of(lead.company),
+            score=lead.score,
+            site_cantons=lead.site_cantons,
+            activities=[ACTIVITIES[c] for c in lead.activity_codes if c in ACTIVITIES],
+            vendors=sorted(lead.vendors),
+            evidence=[schemas.EvidenceItem(**vars(e)) for e in lead.evidence],
+        )
+        for lead in leads
     ]
 
 

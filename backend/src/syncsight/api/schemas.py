@@ -103,3 +103,20 @@ class Target(BaseModel):
 
 def as_float(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
+
+
+class EvidenceItem(BaseModel):
+    kind: str
+    on: date | None
+    title: str
+    detail: str | None
+    url: str | None
+
+
+class MesLead(BaseModel):
+    company: CompanySummary
+    score: int
+    site_cantons: list[str]
+    activities: list[str]
+    vendors: list[str]
+    evidence: list[EvidenceItem]
