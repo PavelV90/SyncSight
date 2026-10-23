@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -94,3 +95,60 @@ def test_run_stores_notices_and_skips_known(db_session: Session) -> None:
         ("HR01", ["registration"]),
         ("HR02", ["capital"]),
     ]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "Ausgeschiedene Personen und erloschene Unterschriften: Muster, Hans, von Bern, "
+            "in Basel, Mitglied des Verwaltungsrates, mit Kollektivunterschrift zu zweien.",
+            {"board"},
+        ),
+        (
+            "Eingetragene Personen neu oder mutierend: Muster, Anna, von Zug, in Zug, "
+            "Gesellschafterin und Geschäftsführerin, mit Einzelunterschrift.",
+            {"management"},
+        ),
+        ("Dupont Marie n'est plus administratrice; ses pouvoirs sont radiés.", {"board"}),
+        ("Martin Paul, gérant, avec signature individuelle.", {"management"}),
+        (
+            "Persone dimissionarie e firme cancellate: Esempio SA, in Lugano, "
+            "ufficio di revisione.",
+            {"auditor"},
+        ),
+        ("Ausgeschiedene Personen: Muster, Hans, mit Kollektivprokura zu zweien.", set()),
+        (None, set()),
+    ],
+)
+def test_text_labels(text: str | None, expected: set[str]) -> None:
+    assert shab.text_labels(text) == expected
+
+
+def test_text_labels_ignore_company_name_and_purpose() -> None:
+    text = (
+        "Muster Geschäftsführung GmbH, in Bern. Zweck neu: Beratung von Verwaltungsräten. "
+        "Domizil neu: Hauptstrasse 1, 3000 Bern."
+    )
+
+    labels = shab.text_labels(
+        text, company_name="Muster Geschäftsführung GmbH", purpose="Beratung von Verwaltungsräten."
+    )
+
+    assert labels == frozenset()
+
+
+@pytest.mark.db
+def test_reclassify_updates_text_labels_only(db_session: Session) -> None:
+    notice = parse_notice(HR02)
+    stale = replace(
+        notice,
+        changes=frozenset({"capital", "management"}),
+        publication_text="Muster, Hans, Mitglied des Verwaltungsrates, mit Einzelunterschrift.",
+    )
+    shab.upsert_notices(db_session, [stale])
+
+    assert shab.reclassify(db_session) == 1
+    stored = db_session.get(SogcNotice, notice.id)
+    assert stored is not None
+    assert stored.changes == ["board", "capital"]

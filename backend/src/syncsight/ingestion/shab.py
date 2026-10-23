@@ -19,7 +19,7 @@ from xml.etree.ElementTree import Element
 
 import httpx2
 from defusedxml import ElementTree
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,7 @@ from syncsight.ingestion.normalize import normalize_uid
 log = logging.getLogger(__name__)
 
 API_URL = "https://www.amtsblattportal.ch/api/v1/publications"
+PUBLIC_URL = "https://www.shab.ch/#!/search/publications/detail/{id}"
 PAGE_SIZE = 2000  # API maximum
 
 # <changements> child element -> change label
@@ -50,6 +51,25 @@ _NESTED_FLAGS = {
 }
 # <transaction> child element -> change label
 _TRANSACTIONS = {"registration": "registration", "delete": "deletion"}
+# Changes the XML does not flag, found in the notice text (DE/FR/IT wording of the registers).
+# Matched after removing the company name and purpose, which may contain the same words.
+_TEXT_RULES = {
+    "board": re.compile(
+        r"verwaltungsrat|stiftungsrat|conseil d.administration|conseil de fondation"
+        r"|administrat(?:eur|rice)|consiglio d.amministrazione|consiglio di fondazione"
+        r"|amministrat(?:ore|rice)",
+        re.IGNORECASE,
+    ),
+    "management": re.compile(
+        r"geschäftsführ|geschäftsleitung|direktor|gérant|directeur|directrice"
+        r"|membre de la direction|gerente|diret(?:tore|trice)|direzione",
+        re.IGNORECASE,
+    ),
+    "auditor": re.compile(
+        r"revisionsstelle|organe de révision|ufficio di revisione", re.IGNORECASE
+    ),
+}
+TEXT_LABELS = frozenset(_TEXT_RULES)
 
 
 @dataclass(frozen=True)
@@ -81,6 +101,10 @@ def parse_notice(xml: bytes) -> ShabNotice:
     company = commons.find("company") if commons is not None else None
     capital = _text(commons, "capital/nominal")
     cantons = [c.text for c in root.findall("meta/cantons") if c.text]
+    text = _plain_text(_text(content, "publicationText"))
+    company_name = _text(company, "name")
+    purpose = _text(commons, "purpose")
+    changes = _changes(content.find("transaction") if content is not None else None)
     return ShabNotice(
         id=_required(root, "meta/id"),
         publication_number=_required(root, "meta/publicationNumber"),
@@ -89,14 +113,48 @@ def parse_notice(xml: bytes) -> ShabNotice:
         language=root.findtext("meta/language"),
         cantons=",".join(cantons) or None,
         company_uid=normalize_uid(_text(company, "uid")),
-        company_name=_text(company, "name"),
+        company_name=company_name,
         company_seat=_text(company, "seat"),
         legal_form=_text(company, "legalForm"),
-        purpose=_text(commons, "purpose"),
+        purpose=purpose,
         capital_nominal=Decimal(capital) if capital else None,
-        changes=_changes(content.find("transaction") if content is not None else None),
-        publication_text=_plain_text(_text(content, "publicationText")),
+        changes=changes | text_labels(text, company_name, purpose),
+        publication_text=text,
     )
+
+
+def text_labels(
+    text: str | None, company_name: str | None = None, purpose: str | None = None
+) -> frozenset[str]:
+    """Board, management and auditor changes named in the notice text."""
+    if not text:
+        return frozenset()
+    for known in (_plain_text(purpose), company_name):
+        if known:
+            text = text.replace(known, " ")
+    return frozenset(label for label, rule in _TEXT_RULES.items() if rule.search(text))
+
+
+def reclassify(session: Session, batch_size: int = 5000) -> int:
+    """Re-apply the text rules to stored notices (after a rule change); returns rows changed."""
+    changed = 0
+    query = select(
+        SogcNotice.id,
+        SogcNotice.changes,
+        SogcNotice.publication_text,
+        SogcNotice.company_name,
+        SogcNotice.purpose,
+    )
+    for rows in session.execute(query).partitions(batch_size):
+        for notice_id, changes, text, company_name, purpose in rows:
+            new = (set(changes) - TEXT_LABELS) | text_labels(text, company_name, purpose)
+            if new != set(changes):
+                session.execute(
+                    update(SogcNotice).where(SogcNotice.id == notice_id).values(changes=sorted(new))
+                )
+                changed += 1
+    session.commit()
+    return changed
 
 
 def list_notice_ids(

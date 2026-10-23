@@ -33,6 +33,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                 shab.run(session, client, keyword=uid, delay=args.delay)
         elif args.source == "swissmedic":
             swissmedic.run(session, client)
+        elif args.source == "reclassify":
+            changed = shab.reclassify(session)
+            logging.info("shab: %d notices relabelled", changed)
         elif args.source == "match":
             matched = swissmedic.match_companies(session)
             session.commit()
@@ -65,6 +68,7 @@ def _parser() -> argparse.ArgumentParser:
 
     sources.add_parser("swissmedic", help="Swissmedic establishment licences (full snapshot)")
     sources.add_parser("match", help="re-match Swissmedic licence holders to companies")
+    sources.add_parser("reclassify", help="re-apply SHAB text rules to stored notices")
     return parser
 
 
