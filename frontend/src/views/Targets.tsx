@@ -1,90 +1,286 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
-import { formatChf, getJson, type Target } from "../api";
-import { Status } from "./Status";
-import { useQuery } from "./useQuery";
+import { formatChf, formatDate, getJson, type Target } from "../api";
+import { PeriodSelect, periodLabel } from "../components/PeriodSelect";
+import { ResultBar } from "../components/ResultBar";
+import { SearchSyntaxHint } from "../components/SearchSyntaxHint";
+import { SortableTh } from "../components/SortableTh";
+import { Status } from "../components/Status";
+import { toCsv } from "../lib/csv";
+import type { ListViewProps } from "../lib/navigation";
+import { useQuery } from "../lib/useQuery";
+import { useSort } from "../lib/useSort";
 
-type Props = { onOpenCompany: (uid: string) => void };
+type Filters = { q: string; foundedSince: string; days: number };
+const DEFAULTS: Filters = { q: "medtech", foundedSince: "2020-01-01", days: 365 };
+const today = () => new Date().toISOString().slice(0, 10);
+const yearsAgo = (years: number) => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return d.toISOString().slice(0, 10);
+};
+const increase = (t: Target) => t.capital_after - t.capital_before;
+const increasePct = (t: Target) =>
+  t.capital_before ? (increase(t) / t.capital_before) * 100 : null;
+const formatIncrease = (t: Target) => {
+  const pct = increasePct(t);
+  return `+${formatChf(increase(t))}${pct === null ? "" : ` (+${pct < 1 ? pct.toFixed(1) : Math.round(pct)} %)`}`;
+};
 
 /** Use case 2: young companies in a field that recently raised capital. */
-export function Targets({ onOpenCompany }: Props) {
-  const [q, setQ] = useState("medtech");
-  const [foundedSince, setFoundedSince] = useState("2020-01-01");
-  const [days, setDays] = useState(365);
-  const [{ data, loading, error }, run] = useQuery<Target[]>();
+export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
+  const [filters, setFilters] = useState(DEFAULTS);
+  const [submitted, setSubmitted] = useState(DEFAULTS);
+  const [minIncrease, setMinIncrease] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [{ data, loading, error }, run, retry] = useQuery<Target[]>();
+
+  const load = (f: Filters) =>
+    run((signal) =>
+      getJson<Target[]>(
+        "/api/targets",
+        { q: f.q, founded_since: f.foundedSince, raised_within_days: f.days },
+        signal,
+      ),
+    );
+  const search = (f: Filters) => {
+    setSubmitted(f);
+    load(f);
+  };
+  useEffect(() => load(DEFAULTS), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    run(() =>
-      getJson<Target[]>("/api/targets", {
-        q,
-        founded_since: foundedSince,
-        raised_within_days: days,
-      }),
-    );
+    if (filters.q.trim().length < 2) return setFormError("Enter at least 2 characters.");
+    if (!filters.foundedSince || filters.foundedSince > today())
+      return setFormError("Choose a founding date that is not in the future.");
+    setFormError(null);
+    search(filters);
   }
 
+  function reset() {
+    setFilters(DEFAULTS);
+    setMinIncrease("");
+    setFormError(null);
+    search(DEFAULTS);
+  }
+
+  const minimum = Number(minIncrease) || 0;
+  const targets = useMemo(
+    () => (data ?? []).filter((t) => increase(t) >= minimum),
+    [data, minimum],
+  );
+  const { sorted, sortKey, sortDir, toggle } = useSort(
+    targets,
+    {
+      company: (t: Target) => t.company.name,
+      founded: (t: Target) => t.founded_on,
+      raised: (t: Target) => t.raised_on,
+      before: (t: Target) => t.capital_before,
+      after: (t: Target) => t.capital_after,
+      increase: (t: Target) => increase(t),
+    },
+    { key: "increase", dir: "desc" },
+  );
+  const total = data?.length ?? 0;
+  const summary =
+    `${minimum ? `${targets.length} of ` : ""}${total} companies · '${submitted.q}' · ` +
+    `founded since ${formatDate(submitted.foundedSince)} · raised capital ${periodLabel(submitted.days)}`;
+
   return (
-    <section>
+    <section aria-labelledby="targets-heading">
+      <h2 id="targets-heading">Investment targets</h2>
       <p className="hint">
         Companies whose purpose matches the keywords, registered since the date, that increased
-        their capital recently. Keywords support <code>or</code> and quotes.
+        their capital in the chosen period.
       </p>
-      <form onSubmit={submit} className="filters">
+      <form onSubmit={submit} className="filters" noValidate>
         <label>
-          Keywords <input value={q} onChange={(e) => setQ(e.target.value)} />
+          Keywords
+          <input
+            value={filters.q}
+            placeholder="e.g. medtech or diagnostics"
+            aria-describedby="targets-syntax"
+            onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+          />
+          <SearchSyntaxHint id="targets-syntax" />
         </label>
         <label>
-          Founded since{" "}
+          Founded since
           <input
             type="date"
-            value={foundedSince}
-            onChange={(e) => setFoundedSince(e.target.value)}
+            required
+            max={today()}
+            value={filters.foundedSince}
+            onChange={(e) => setFilters({ ...filters, foundedSince: e.target.value })}
           />
+          <span className="quick-picks">
+            {[3, 5, 10].map((years) => (
+              <button
+                key={years}
+                type="button"
+                className="link small"
+                onClick={() => setFilters({ ...filters, foundedSince: yearsAgo(years) })}
+              >
+                last {years} years
+              </button>
+            ))}
+          </span>
         </label>
+        <PeriodSelect
+          label="Capital raised in"
+          value={filters.days}
+          onChange={(days) => setFilters({ ...filters, days })}
+          options={[90, 182, 365, 730, 1096]}
+        />
         <label>
-          Raised in last days{" "}
+          Min. increase (CHF)
           <input
             type="number"
-            min={1}
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            inputMode="numeric"
+            min={0}
+            step={1000}
+            value={minIncrease}
+            placeholder="any"
+            onChange={(e) => setMinIncrease(e.target.value)}
           />
+          <span className="hint small">Filters the loaded results</span>
         </label>
-        <button type="submit">Find targets</button>
+        <div className="form-actions">
+          <button type="submit" className="primary" disabled={loading} aria-busy={loading}>
+            Find targets
+          </button>
+          <button type="button" onClick={reset}>
+            Reset
+          </button>
+          {formError && (
+            <span role="alert" className="field-error">
+              {formError}
+            </span>
+          )}
+        </div>
       </form>
-      <Status loading={loading} error={error} empty={data?.length === 0} />
-      {data && data.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Company</th>
-              <th>Canton</th>
-              <th>Founded</th>
-              <th>Capital raised</th>
-              <th>Capital</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((t) => (
-              <tr key={t.company.uid}>
-                <td>
-                  <button className="link" onClick={() => onOpenCompany(t.company.uid)}>
-                    {t.company.name}
-                  </button>
-                </td>
-                <td>{t.company.canton}</td>
-                <td>{t.founded_on}</td>
-                <td>
-                  <a href={t.notice_url} target="_blank" rel="noreferrer">
-                    {t.raised_on}
-                  </a>
-                </td>
-                <td>{`${formatChf(t.capital_before)} → ${formatChf(t.capital_after)}`}</td>
+
+      <Status
+        loading={loading}
+        error={error}
+        empty={data !== null && targets.length === 0}
+        onRetry={retry}
+        emptyText="No company matches these filters."
+      />
+      {data !== null && (
+        <ResultBar
+          summary={summary}
+          uids={sorted.map((t) => t.company.uid)}
+          csv={() => ({
+            filename: "syncsight-investment-targets.csv",
+            content: toCsv(sorted, [
+              { header: "Company", value: (t) => t.company.name },
+              { header: "UID", value: (t) => t.company.uid },
+              { header: "Legal form", value: (t) => t.company.legal_form },
+              { header: "Canton", value: (t) => t.company.canton },
+              { header: "Founded", value: (t) => t.founded_on },
+              { header: "Capital raised on", value: (t) => t.raised_on },
+              { header: "Capital before (CHF)", value: (t) => t.capital_before },
+              { header: "Capital after (CHF)", value: (t) => t.capital_after },
+              { header: "Increase (CHF)", value: (t) => increase(t) },
+              { header: "SHAB notice", value: (t) => t.notice_url },
+            ]),
+          })}
+        />
+      )}
+      {sorted.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <caption className="sr-only">Investment targets</caption>
+            <thead>
+              <tr>
+                <SortableTh
+                  sortKey="company"
+                  label="Company"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                />
+                <SortableTh
+                  sortKey="founded"
+                  label="Founded"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                  help="Date of the company's registration notice in SHAB"
+                />
+                <SortableTh
+                  sortKey="raised"
+                  label="Raised on"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                  help="SHAB notice stating the higher capital"
+                />
+                <SortableTh
+                  sortKey="before"
+                  label="Before"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                  className="num"
+                />
+                <SortableTh
+                  sortKey="after"
+                  label="After"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                  className="num"
+                />
+                <SortableTh
+                  sortKey="increase"
+                  label="Increase"
+                  active={sortKey}
+                  dir={sortDir}
+                  onSort={toggle}
+                  className="num"
+                />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sorted.map((t) => (
+                <tr
+                  key={t.company.uid}
+                  className={t.company.uid === openedUid ? "row--opened" : undefined}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      data-uid={t.company.uid}
+                      onClick={() => onOpenCompany(t.company.uid)}
+                    >
+                      {t.company.name}
+                    </button>
+                    <div className="muted small">
+                      {[t.company.legal_form, t.company.seat, t.company.canton]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </td>
+                  <td className="nowrap">
+                    <time dateTime={t.founded_on}>{formatDate(t.founded_on)}</time>
+                  </td>
+                  <td className="nowrap">
+                    <a href={t.notice_url} target="_blank" rel="noreferrer">
+                      <time dateTime={t.raised_on}>{formatDate(t.raised_on)}</time>
+                    </a>
+                  </td>
+                  <td className="num">{formatChf(t.capital_before)}</td>
+                  <td className="num">{formatChf(t.capital_after)}</td>
+                  <td className="num">{formatIncrease(t)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

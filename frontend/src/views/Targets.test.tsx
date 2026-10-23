@@ -1,39 +1,45 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { capitalChange, company, mockApi } from "../test-api";
+import { company, fetchedUrls, mockApi } from "../test-api";
 import { Targets } from "./Targets";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("lists targets with their capital increase", async () => {
+const target = (name: string, before: number, after: number) => ({
+  company: { ...company, uid: `uid-${name}`, name },
+  founded_on: "2021-03-01",
+  raised_on: "2026-09-20",
+  capital_before: before,
+  capital_after: after,
+  notice_url: "https://www.shab.ch/#!/search/publications/detail/n2",
+});
+
+it("loads on open and sorts by capital increase", async () => {
   const fetchMock = mockApi({
-    "/api/targets": [
-      {
-        company,
-        founded_on: "2021-03-01",
-        raised_on: "2026-09-20",
-        capital_before: 100000,
-        capital_after: 250000,
-        notice_url: "https://www.shab.ch/#!/search/publications/detail/n2",
-      },
-    ],
+    "/api/targets": [target("Small AG", 100000, 101000), target("Big AG", 100000, 600000)],
   });
-  render(<Targets onOpenCompany={() => {}} />);
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Find targets" }));
+  await screen.findByRole("button", { name: "Big AG" });
+  const rows = screen.getAllByRole("row").slice(1);
 
-  expect(await screen.findByText(capitalChange(100000, 250000))).toBeInTheDocument();
-  expect(fetchMock).toHaveBeenCalledWith(
+  expect(within(rows[0]).getByRole("button")).toHaveTextContent("Big AG");
+  expect(within(rows[0]).getByText(/\+CHF.*500.000 \(\+500 %\)/)).toBeInTheDocument();
+  expect(fetchedUrls(fetchMock)[0]).toBe(
     "/api/targets?q=medtech&founded_since=2020-01-01&raised_within_days=365",
   );
 });
 
-it("shows when nothing matches", async () => {
-  mockApi({ "/api/targets": [] });
-  render(<Targets onOpenCompany={() => {}} />);
+it("filters by minimum increase and reports the count", async () => {
+  mockApi({
+    "/api/targets": [target("Small AG", 100000, 101000), target("Big AG", 100000, 600000)],
+  });
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
+  await screen.findByRole("button", { name: "Small AG" });
 
-  fireEvent.click(screen.getByRole("button", { name: "Find targets" }));
+  fireEvent.change(screen.getByLabelText(/Min. increase/), { target: { value: "50000" } });
 
-  expect(await screen.findByText("No results.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Small AG" })).not.toBeInTheDocument();
+  expect(screen.getByText(/1 of 2 companies/)).toBeInTheDocument();
 });

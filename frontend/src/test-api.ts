@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { type Mock, vi } from "vitest";
 
 import { formatChf } from "./api";
 
@@ -12,6 +12,9 @@ export function mockApi(routes: Record<string, unknown>) {
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
+
+/** URLs fetched so far (first argument of each call). */
+export const fetchedUrls = (fetchMock: Mock) => fetchMock.mock.calls.map((call) => String(call[0]));
 
 export const company = {
   uid: "CHE-000.000.001",
@@ -31,6 +34,30 @@ export const notice = {
   previous_capital: 100000,
   text: "Mitglied des Verwaltungsrates neu.",
   url: "https://www.shab.ch/#!/search/publications/detail/n1",
+};
+
+export const mesLead = {
+  company,
+  score: 9,
+  site_cantons: ["BS"],
+  activities: ["Manufacturing"],
+  vendors: ["PharmaSuite"],
+  evidence: [
+    {
+      kind: "permit_production",
+      on: "2026-09-02",
+      title: "Building permit: Neubau Produktionsgebäude",
+      detail: "Werkstrasse 1, Basel",
+      url: "https://www.shab.ch/#!/search/publications/detail/p1",
+    },
+    {
+      kind: "web_hiring",
+      on: null,
+      title: "MES Engineer",
+      detail: null,
+      url: "https://a.ch/jobs/1",
+    },
+  ],
 };
 
 /** Capital change as rendered; Testing Library collapses Intl's non-breaking spaces. */

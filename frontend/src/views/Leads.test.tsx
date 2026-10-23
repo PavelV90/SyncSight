@@ -1,32 +1,47 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { company, mockApi, notice } from "../test-api";
+import { CANTON_CODES } from "../lib/labels";
+import { company, fetchedUrls, mockApi, notice } from "../test-api";
 import { Leads } from "./Leads";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("queries leads with the default filters and opens a company", async () => {
-  const fetchMock = mockApi({
-    "/api/leads": [
-      {
-        company,
-        site_cantons: ["BS"],
-        activities: ["Manufacturing"],
-        last_change: "2026-10-12",
-        notices: [notice],
-      },
-    ],
-  });
-  const onOpen = vi.fn();
-  render(<Leads onOpenCompany={onOpen} />);
+const lead = {
+  company,
+  site_cantons: ["BS"],
+  activities: ["Manufacturing"],
+  last_change: "2026-10-12",
+  notices: [notice, { ...notice, id: "n2", changes: ["other"] }],
+};
 
-  fireEvent.click(screen.getByRole("button", { name: "Find leads" }));
+it("loads with Basel-region defaults and opens the profile at the triggering notice", async () => {
+  const fetchMock = mockApi({ "/api/leads": [lead] });
+  const onOpen = vi.fn();
+  render(<Leads onOpenCompany={onOpen} openedUid={null} />);
+
   fireEvent.click(await screen.findByRole("button", { name: "Alpenpharma AG" }));
 
-  expect(fetchMock).toHaveBeenCalledWith(
-    "/api/leads?cantons=BS&cantons=BL&cantons=AG&days=90&activity=1",
+  expect(fetchedUrls(fetchMock)[0]).toBe(
+    "/api/leads?cantons=BS&cantons=BL&cantons=AG&days=90&activity=1&changes=board&changes=management",
   );
-  expect(screen.getByRole("link", { name: "2026-10-12" })).toHaveAttribute("href", notice.url);
-  expect(onOpen).toHaveBeenCalledWith("CHE-000.000.001");
+  expect(onOpen).toHaveBeenCalledWith("CHE-000.000.001", { healthOnly: false, noticeId: "n1" });
+  expect(screen.getAllByRole("link", { name: "12.10.2026" })[0]).toHaveAttribute(
+    "href",
+    notice.url,
+  );
+});
+
+it("sends every canton explicitly when none is selected", async () => {
+  const fetchMock = mockApi({ "/api/leads": [] });
+  render(<Leads onOpenCompany={() => {}} openedUid={null} />);
+  await screen.findByText("No company matches these filters.");
+
+  for (const name of ["Basel-Stadt", "Basel-Landschaft", "Aargau"]) {
+    fireEvent.click(screen.getByRole("button", { name: `Remove ${name}` }));
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Find leads" }));
+
+  const url = new URL(fetchedUrls(fetchMock).at(-1)!, "http://x");
+  expect(url.searchParams.getAll("cantons")).toEqual(CANTON_CODES);
 });
