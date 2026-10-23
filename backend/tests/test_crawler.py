@@ -95,3 +95,14 @@ def test_unreachable_robots_means_nothing_is_fetched() -> None:
 
     assert crawl_site(fetcher, "https://www.down.ch/") == []
     assert requested == ["https://www.down.ch/robots.txt"]
+
+
+def test_redirect_loop_is_skipped_not_raised() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/robots.txt":
+            return httpx2.Response(404)
+        return httpx2.Response(302, headers={"location": str(request.url)})
+
+    client = httpx2.Client(transport=httpx2.MockTransport(handler), follow_redirects=True)
+
+    assert crawl_site(Fetcher(client, delay=0), "https://www.loop.ch/") == []

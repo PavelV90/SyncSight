@@ -164,7 +164,7 @@ class Robots:
     def _load(self, host: str) -> urllib.robotparser.RobotFileParser | bool:
         try:
             response = self._client.get(f"{host}/robots.txt", timeout=15)
-        except httpx2.TransportError:
+        except httpx2.HTTPError:  # unreachable, redirect loop, …: treat as disallowed
             return False
         if response.status_code >= 500:
             return False
@@ -194,7 +194,7 @@ class Fetcher:
         self._last[host] = time.monotonic()
         try:
             response = http.request(self.client, "GET", url, attempts=2, backoff=self.delay)
-        except (httpx2.HTTPStatusError, httpx2.TransportError):
+        except httpx2.HTTPError:
             return None
         if len(response.content) > MAX_BYTES:
             return None

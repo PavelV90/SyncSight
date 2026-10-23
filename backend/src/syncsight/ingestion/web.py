@@ -116,31 +116,37 @@ def resolve_websites(
         )
     )
     todo = [uid for uid in uids if uid not in checked]
-    found: dict[str, tuple[str | None, str, str | None]] = {}
+    registry: dict[str, tuple[str, str]] = {}
     for start in range(0, len(todo), 200):
         batch = todo[start : start + 200]
-        for uid, url in lindas_websites(client, batch).items():
-            found[uid] = (url, "lindas", None)
-        for uid, url in wikidata_websites(client, batch).items():
-            found.setdefault(uid, (url, "wikidata", None))
-    companies = [
-        c
-        for c in session.scalars(select(Company).where(Company.uid.in_(todo)))
-        if c.uid not in found
-    ]
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        for company, result in zip(companies, pool.map(_guess, companies), strict=True):
-            if result:
-                found[company.uid] = (result[0], "verified-guess", result[1])
-    for uid in todo:
-        site_url, source, evidence = found.get(uid, (None, "none", None))
-        row = {"company_uid": uid, "url": site_url, "source": source, "evidence": evidence,
-               "checked_at": datetime.now(UTC)}  # fmt: skip
-        stmt = insert(CompanyWebsite).values(row)
-        session.execute(stmt.on_conflict_do_update(index_elements=["company_uid"], set_=row))
+        for source, lookup in (("lindas", lindas_websites), ("wikidata", wikidata_websites)):
+            try:
+                for uid, url in lookup(client, batch).items():
+                    registry.setdefault(uid, (url, source))
+            except httpx2.HTTPError:
+                log.warning("websites: %s lookup failed for a batch", source)
+    for uid, (url, source) in registry.items():
+        _save_website(session, uid, url, source, None)
     session.commit()
-    log.info("websites: %d of %d companies", len(found), len(todo))
-    return len(found)
+    companies = list(
+        session.scalars(
+            select(Company).where(Company.uid.in_([u for u in todo if u not in registry]))
+        )
+    )
+    found = len(registry)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for i, (company, result) in enumerate(
+            zip(companies, pool.map(_guess, companies), strict=True)
+        ):
+            site_url, evidence = result or (None, None)
+            source = "verified-guess" if site_url else "none"
+            _save_website(session, company.uid, site_url, source, evidence)
+            found += site_url is not None
+            if i % 20 == 19:
+                session.commit()
+    session.commit()
+    log.info("websites: %d of %d companies", found, len(todo))
+    return found
 
 
 def crawl(session: Session, uids: Iterable[str], workers: int = 6) -> int:
@@ -178,12 +184,24 @@ def store_hits(session: Session, company_uid: str, hits: Iterable[Hit]) -> None:
         session.execute(stmt.on_conflict_do_update(index_elements=["company_uid", "url"], set_=row))
 
 
+def _save_website(
+    session: Session, uid: str, url: str | None, source: str, evidence: str | None
+) -> None:
+    row = {"company_uid": uid, "url": url, "source": source, "evidence": evidence,
+           "checked_at": datetime.now(UTC)}  # fmt: skip
+    stmt = insert(CompanyWebsite).values(row)
+    session.execute(stmt.on_conflict_do_update(index_elements=["company_uid"], set_=row))
+
+
 def _guess(company: Company) -> tuple[str, str] | None:
-    with make_client(timeout=20) as client:
-        fetcher = Fetcher(client)
-        for url in candidate_urls(company.name):
-            if result := verify(fetcher, url, company):
-                return result
+    try:
+        with make_client(timeout=20) as client:
+            fetcher = Fetcher(client)
+            for url in candidate_urls(company.name):
+                if result := verify(fetcher, url, company):
+                    return result
+    except Exception:  # one odd site must not stop the run
+        log.exception("websites: guessing failed for %s", company.uid)
     return None
 
 
