@@ -97,7 +97,7 @@ def parse_csv(text: str) -> list[CompanyRecord]:
             name=row["name"].strip(),
             legal_form=legal_form.group(1) if legal_form else None,
             purpose=row.get("purpose") or None,
-            street=row.get("street") or None,
+            street=" ".join((row.get("street") or "").split()) or None,
             postal_code=row.get("postalCode") or None,
             locality=row.get("locality") or None,
             canton=row.get("canton") or None,

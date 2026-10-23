@@ -47,6 +47,8 @@ class Company(Base):
     capital_nominal: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     source: Mapped[str | None] = mapped_column(Text)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # set when the company's full SHAB history was fetched (per-UID run)
+    history_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     search_vector: Mapped[str] = mapped_column(
         TSVECTOR,
         Computed(
@@ -169,6 +171,7 @@ class Medicine(Base):
     holder_name_key: Mapped[str | None] = mapped_column(Text, index=True)
     holder_postal_code: Mapped[str | None] = mapped_column(String(10))
     company_uid: Mapped[str | None] = mapped_column(String(15), index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class CompanyWebsite(Base):

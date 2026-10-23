@@ -19,11 +19,11 @@ from xml.etree.ElementTree import Element
 
 import httpx2
 from defusedxml import ElementTree
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from syncsight.db.models import SogcNotice
+from syncsight.db.models import Company, SogcNotice
 from syncsight.ingestion import http
 from syncsight.ingestion.normalize import normalize_uid
 
@@ -231,6 +231,11 @@ def run(
             batch.clear()
             log.info("shab: %d notices stored", total)
     total += upsert_notices(session, batch)
+    if uid := normalize_uid(keyword):
+        # a keyword search by UID returns the company's full history
+        session.execute(
+            update(Company).where(Company.uid == uid).values(history_fetched_at=func.now())
+        )
     session.commit()
     log.info("shab: done, %d new notices", total)
     return total

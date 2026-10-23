@@ -12,7 +12,7 @@ from syncsight.ingestion.zefix_lindas import CompanyRecord, parse_csv
 CSV = (
     "uid,name,legalForm,purpose,street,postalCode,locality,canton,municipality,municipalityName\n"
     "CHE000000001,Alpenmed AG,https://ld.admin.ch/ech/97/legalforms/0106,"
-    '"Entwicklung von Medtech-Implantaten, Beratung",Hauptstrasse 1,4051,Basel,BS,'
+    '"Entwicklung von Medtech-Implantaten, Beratung",Hauptstrasse  1 ,4051,Basel,BS,'
     "https://ld.admin.ch/municipality/2701,Basel\n"
     "CHE000000001,Alpenmed AG,https://ld.admin.ch/ech/97/legalforms/0106,Duplikat,,,,BS,,\n"
     "not-a-uid,Broken GmbH,,,,,,BS,,\n"

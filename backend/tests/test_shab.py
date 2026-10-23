@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from syncsight.db.models import SogcNotice
+from syncsight.db.models import Company, SogcNotice
 from syncsight.ingestion import shab
 from syncsight.ingestion.shab import parse_notice
 from tests.conftest import FIXTURES_DIR
@@ -152,3 +152,14 @@ def test_reclassify_updates_text_labels_only(db_session: Session) -> None:
     stored = db_session.get(SogcNotice, notice.id)
     assert stored is not None
     assert stored.changes == ["board", "capital"]
+
+
+@pytest.mark.db
+def test_run_by_uid_marks_full_history_fetched(db_session: Session) -> None:
+    db_session.add(Company(uid="CHE-000.000.001", name="Beispiel Pharma AG", status="active"))
+    notices = {parse_notice(HR02).id: HR02}
+
+    shab.run(db_session, _fake_api(notices, []), keyword="CHE-000.000.001", delay=0)
+
+    company = db_session.get(Company, "CHE-000.000.001")
+    assert company is not None and company.history_fetched_at is not None

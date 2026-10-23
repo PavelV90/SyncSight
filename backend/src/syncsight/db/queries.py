@@ -36,18 +36,38 @@ class Target:
     capital_before: Decimal
     capital_after: Decimal
     notice_id: str
+    purpose_excerpt: str | None = None  # matched words wrapped in ⟦ ⟧
+
+
+# ts_headline options: short excerpt around the matches, markers the UI turns into <mark>
+_EXCERPT_OPTIONS = (
+    'StartSel=⟦, StopSel=⟧, MaxWords=30, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "'
+)
 
 
 def search_companies(
     session: Session, query: str, canton: str | None = None, limit: int = 20
 ) -> Sequence[Company]:
-    """Full-text search over company name and purpose, best match first."""
+    """Full-text search over name and purpose: name matches first, then by rank."""
     tsquery = func.websearch_to_tsquery(SEARCH_CONFIG, query)
+    name_match = func.to_tsvector(SEARCH_CONFIG, Company.name).op("@@")(tsquery)
     stmt = select(Company).where(Company.search_vector.op("@@")(tsquery))
     if canton:
         stmt = stmt.where(Company.canton == canton)
-    stmt = stmt.order_by(func.ts_rank(Company.search_vector, tsquery).desc(), Company.name)
+    stmt = stmt.order_by(
+        name_match.desc(), func.ts_rank(Company.search_vector, tsquery).desc(), Company.name
+    )
     return session.scalars(stmt.limit(limit)).all()
+
+
+def history_coverage(session: Session, uid: str) -> tuple[int, date | None]:
+    """All-time notice count and earliest notice date of a company."""
+    count, earliest = session.execute(
+        select(func.count(), func.min(SogcNotice.publication_date)).where(
+            SogcNotice.company_uid == uid
+        )
+    ).one()
+    return count, earliest
 
 
 def company_timeline(
@@ -137,6 +157,7 @@ def investment_targets(
     )
     capitals = _capitals()
     tsquery = func.websearch_to_tsquery(SEARCH_CONFIG, query)
+    excerpt = func.ts_headline(SEARCH_CONFIG, Company.purpose, tsquery, _EXCERPT_OPTIONS)
     rows = session.execute(
         select(
             Company,
@@ -145,6 +166,7 @@ def investment_targets(
             capitals.c.previous,
             capitals.c.capital_nominal,
             capitals.c.id,
+            excerpt,
         )
         .join(founded, founded.c.company_uid == Company.uid)
         .join(capitals, capitals.c.company_uid == Company.uid)
@@ -157,9 +179,10 @@ def investment_targets(
         .order_by(capitals.c.publication_date.desc())
     ).all()
     targets: dict[str, Target] = {}
-    for company, founded_on, raised_on, before, after, notice_id in rows:
+    for company, founded_on, raised_on, before, after, notice_id, purpose in rows:
         targets.setdefault(
-            company.uid, Target(company, founded_on, raised_on, before, after, notice_id)
+            company.uid,
+            Target(company, founded_on, raised_on, before, after, notice_id, purpose),
         )
     return list(targets.values())
 

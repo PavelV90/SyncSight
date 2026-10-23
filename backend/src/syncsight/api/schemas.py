@@ -1,10 +1,11 @@
 """API response models."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel
 
+from syncsight.db import mes as mes_scoring
 from syncsight.db.models import Company, SogcNotice, SwissmedicSite
 from syncsight.ingestion.shab import PUBLIC_URL
 from syncsight.ingestion.swissmedic import ACTIVITIES
@@ -77,11 +78,71 @@ class Site(BaseModel):
         )
 
 
+class EvidenceItem(BaseModel):
+    kind: str
+    on: date | None
+    title: str
+    detail: str | None
+    url: str | None
+    points: int
+
+
+class KindScore(BaseModel):
+    kind: str
+    items: int
+    counted: int
+    points_each: int
+    points: int
+
+
+class MesLead(BaseModel):
+    company: CompanySummary
+    score: int
+    breakdown: list[KindScore]
+    site_cantons: list[str]
+    activities: list[str]
+    vendors: list[str]
+    evidence: list[EvidenceItem]
+
+    @classmethod
+    def of(cls, lead: mes_scoring.MesLead) -> "MesLead":
+        return cls(
+            company=CompanySummary.of(lead.company),
+            score=lead.score,
+            breakdown=[KindScore(**vars(k), points=k.points) for k in lead.breakdown],
+            site_cantons=lead.site_cantons,
+            activities=[ACTIVITIES[c] for c in lead.activity_codes if c in ACTIVITIES],
+            vendors=sorted(lead.vendors),
+            evidence=[EvidenceItem(**vars(e)) for e in lead.evidence],
+        )
+
+
+class ScoringRule(BaseModel):
+    kind: str
+    points: int
+    max_items: int
+
+
 class CompanyProfile(CompanySummary):
     purpose: str | None
     address: str | None
+    website: str | None
+    history_fetched_at: datetime | None
+    notice_count: int
+    earliest_notice: date | None
     sites: list[Site]
     timeline: list[Notice]
+    mes: MesLead | None
+
+
+class SourceStatus(BaseModel):
+    key: str
+    label: str
+    rows: int
+    last_loaded_at: datetime | None
+    newest_record: date | None
+    stale: bool
+    command: str
 
 
 class Lead(BaseModel):
@@ -99,24 +160,8 @@ class Target(BaseModel):
     capital_before: float
     capital_after: float
     notice_url: str
+    purpose_excerpt: str | None  # matched words wrapped in ⟦ ⟧
 
 
 def as_float(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
-
-
-class EvidenceItem(BaseModel):
-    kind: str
-    on: date | None
-    title: str
-    detail: str | None
-    url: str | None
-
-
-class MesLead(BaseModel):
-    company: CompanySummary
-    score: int
-    site_cantons: list[str]
-    activities: list[str]
-    vendors: list[str]
-    evidence: list[EvidenceItem]

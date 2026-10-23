@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from syncsight import __version__
 from syncsight.api import schemas
-from syncsight.db import mes, queries
-from syncsight.db.models import Company
+from syncsight.db import mes, queries, status
+from syncsight.db.models import Company, CompanyWebsite
 from syncsight.db.session import make_engine
 from syncsight.ingestion.normalize import normalize_uid
 from syncsight.ingestion.shab import PUBLIC_URL
@@ -63,23 +63,30 @@ def company_profile(
     years: Annotated[int, Query(ge=1, le=20)] = 5,
     health_only: bool = False,
 ) -> schemas.CompanyProfile:
-    """Use case 3: company profile with its register timeline (health events on request)."""
+    """Use case 3: company profile with register timeline, history coverage and MES signals."""
     company = session.get(Company, normalize_uid(uid) or uid)
     if company is None:
         raise HTTPException(status_code=404, detail="Company not found")
     since = date.today() - timedelta(days=365 * years)
     changes = queries.HEALTH_CHANGES if health_only else None
     timeline = queries.company_timeline(session, company.uid, since=since, changes=changes)
+    notice_count, earliest = queries.history_coverage(session, company.uid)
+    website = session.get(CompanyWebsite, company.uid)
+    leads = mes.mes_leads(session, months=24, min_score=0, uids=[company.uid])
     summary = schemas.CompanySummary.of(company)
-    address = ", ".join(p for p in (company.street, _place(company)) if p) or None
     return schemas.CompanyProfile(
         **summary.model_dump(),
         purpose=company.purpose,
-        address=address,
+        address=_address(company),
+        website=website.url if website else None,
+        history_fetched_at=company.history_fetched_at,
+        notice_count=notice_count,
+        earliest_notice=earliest,
         sites=[schemas.Site.of(s) for s in queries.company_sites(session, company.uid)],
         timeline=[
             schemas.Notice.of(e.notice, schemas.as_float(e.previous_capital)) for e in timeline
         ],
+        mes=schemas.MesLead.of(leads[0]) if leads else None,
     )
 
 
@@ -133,6 +140,7 @@ def investment_targets(
             capital_before=float(t.capital_before),
             capital_after=float(t.capital_after),
             notice_url=PUBLIC_URL.format(id=t.notice_id),
+            purpose_excerpt=t.purpose_excerpt,
         )
         for t in targets
     ]
@@ -147,18 +155,29 @@ def mes_leads(
 ) -> list[schemas.MesLead]:
     """Licensed manufacturers ranked by MES signals, each point backed by evidence."""
     leads = mes.mes_leads(session, months=months, cantons=cantons, min_score=min_score)
+    return [schemas.MesLead.of(lead) for lead in leads]
+
+
+@app.get("/api/mes-scoring")
+def mes_scoring() -> list[schemas.ScoringRule]:
+    """Points per signal kind and how many items of a kind count."""
     return [
-        schemas.MesLead(
-            company=schemas.CompanySummary.of(lead.company),
-            score=lead.score,
-            site_cantons=lead.site_cantons,
-            activities=[ACTIVITIES[c] for c in lead.activity_codes if c in ACTIVITIES],
-            vendors=sorted(lead.vendors),
-            evidence=[schemas.EvidenceItem(**vars(e)) for e in lead.evidence],
-        )
-        for lead in leads
+        schemas.ScoringRule(kind=kind, points=points, max_items=cap)
+        for kind, (points, cap) in mes.POINTS.items()
     ]
 
 
-def _place(company: Company) -> str | None:
-    return " ".join(p for p in (company.postal_code, company.locality) if p) or None
+@app.get("/api/status")
+def data_status(session: DbSession) -> list[schemas.SourceStatus]:
+    """Freshness of each data source, for the header."""
+    return [
+        schemas.SourceStatus(**{k: v for k, v in vars(s).items() if k != "stale_after_days"},
+                             stale=s.stale)
+        for s in status.source_status(session)
+    ]  # fmt: skip
+
+
+def _address(company: Company) -> str | None:
+    place = " ".join(p for p in (company.postal_code, company.locality) if p)
+    street = " ".join((company.street or "").split())
+    return ", ".join(p for p in (street, place) if p) or None

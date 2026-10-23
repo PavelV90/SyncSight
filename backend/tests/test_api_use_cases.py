@@ -102,3 +102,40 @@ def test_company_search_by_text_and_uid(client: TestClient) -> None:
     assert {c["name"] for c in by_text} == {"Zugmed AG", "Altmed AG"}
     assert [c["name"] for c in by_uid] == ["Alpenpharma AG"]
     assert client.get("/api/companies/CHE-999.999.999").status_code == 404
+
+
+def test_targets_show_where_the_purpose_matched(client: TestClient) -> None:
+    [target] = client.get("/api/targets", params={"q": "medtech"}).json()
+
+    assert target["purpose_excerpt"] == "Entwicklung von ⟦Medtech⟧-Geräten"
+
+
+def test_name_matches_rank_before_purpose_matches(client: TestClient, db_session: Session) -> None:
+    db_session.add(
+        _company("CHE-000.000.009", "Medtech Partners AG", "ZH", "Beratung")
+    )  # name match, purpose does not mention it
+    db_session.flush()
+
+    names = [c["name"] for c in client.get("/api/companies", params={"q": "medtech"}).json()]
+
+    assert names[0] == "Medtech Partners AG"
+
+
+def test_profile_reports_history_coverage(client: TestClient) -> None:
+    profile = client.get("/api/companies/CHE-000.000.003").json()
+
+    assert profile["notice_count"] == 3
+    assert profile["earliest_notice"] == (TODAY - timedelta(days=1500)).isoformat()
+    assert profile["history_fetched_at"] is None
+
+
+def test_data_status_lists_sources_with_staleness(client: TestClient) -> None:
+    sources = {s["key"]: s for s in client.get("/api/status").json()}
+
+    assert sources["shab"]["rows"] == 8
+    assert sources["shab"]["stale"] is False
+    assert sources["shab"]["newest_record"] == (TODAY - timedelta(days=5)).isoformat()
+    assert sources["medicines"] == {
+        "key": "medicines", "label": "Authorised medicines", "rows": 0, "last_loaded_at": None,
+        "newest_record": None, "stale": True, "command": "medicines",
+    }  # fmt: skip

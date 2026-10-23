@@ -12,6 +12,7 @@ from syncsight.api.main import app, get_session
 from syncsight.db.models import (
     BuildingPermit,
     Company,
+    CompanyWebsite,
     SogcNotice,
     SwissmedicSite,
     SwissmedicSiteChange,
@@ -84,3 +85,37 @@ def test_min_score_filters_weak_leads(client: TestClient) -> None:
     leads = client.get("/api/mes-leads", params={"min_score": 5}).json()
 
     assert [lead["company"]["name"] for lead in leads] == ["Alpenpharma AG"]
+
+
+def test_score_breakdown_and_points_per_item(client: TestClient) -> None:
+    [lead, _] = client.get("/api/mes-leads").json()
+
+    production = next(k for k in lead["breakdown"] if k["kind"] == "permit_production")
+    assert production == {
+        "kind": "permit_production", "items": 3, "counted": 2, "points_each": 3, "points": 6,
+    }  # fmt: skip
+    permit_points = [e["points"] for e in lead["evidence"] if e["kind"] == "permit_production"]
+    assert sorted(permit_points) == [0, 3, 3]
+    assert sum(k["points"] for k in lead["breakdown"]) == lead["score"]
+
+
+def test_scoring_rules_are_published(client: TestClient) -> None:
+    rules = {r["kind"]: r for r in client.get("/api/mes-scoring").json()}
+
+    assert rules["permit_production"] == {"kind": "permit_production", "points": 3, "max_items": 2}
+
+
+def test_profile_carries_mes_signals_and_website(client: TestClient, db_session: Session) -> None:
+    db_session.add(
+        CompanyWebsite(
+            company_uid="CHE-000.000.001", url="https://www.alpenpharma.ch", source="manual"
+        )
+    )
+    db_session.flush()
+
+    profile = client.get("/api/companies/CHE-000.000.001").json()
+    plain = client.get("/api/companies/CHE-000.000.003").json()
+
+    assert profile["website"] == "https://www.alpenpharma.ch"
+    assert profile["mes"]["score"] == 13
+    assert plain["mes"] is None  # wholesale only: not an MES target

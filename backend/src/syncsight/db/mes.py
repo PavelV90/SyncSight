@@ -42,13 +42,26 @@ POINTS = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass
 class Evidence:
     kind: str
     on: date | None
     title: str
     detail: str | None = None
     url: str | None = None
+    points: int = 0  # set by MesLead.assign_points: 0 once the kind's cap is reached
+
+
+@dataclass(frozen=True)
+class KindScore:
+    kind: str
+    items: int
+    counted: int
+    points_each: int
+
+    @property
+    def points(self) -> int:
+        return self.counted * self.points_each
 
 
 @dataclass
@@ -61,10 +74,27 @@ class MesLead:
 
     @property
     def score(self) -> int:
+        return sum(item.points for item in self.breakdown)
+
+    @property
+    def breakdown(self) -> list[KindScore]:
+        """Points per signal kind, highest first."""
         counts: dict[str, int] = defaultdict(int)
         for item in self.evidence:
             counts[item.kind] += 1
-        return sum(POINTS[kind][0] * min(count, POINTS[kind][1]) for kind, count in counts.items())
+        rows = [
+            KindScore(kind, count, min(count, POINTS[kind][1]), POINTS[kind][0])
+            for kind, count in counts.items()
+        ]
+        return sorted(rows, key=lambda row: (-row.points, row.kind))
+
+    def assign_points(self) -> None:
+        """Give each evidence item the points it contributes (newest items count first)."""
+        counted: dict[str, int] = defaultdict(int)
+        for item in self.evidence:
+            each, cap = POINTS[item.kind]
+            item.points = each if counted[item.kind] < cap else 0
+            counted[item.kind] += 1
 
 
 def mes_leads(
@@ -73,9 +103,11 @@ def mes_leads(
     months: int = 24,
     cantons: Collection[str] = (),
     min_score: int = 1,
+    uids: Collection[str] | None = None,
 ) -> list[MesLead]:
+    """Ranked leads; `uids` restricts the targets (e.g. one company for its profile)."""
     since = date.today() - timedelta(days=round(months * 30.44))
-    leads = _targets(session, cantons)
+    leads = _targets(session, cantons, uids)
     uids = list(leads)
 
     for permit in session.scalars(
@@ -156,19 +188,24 @@ def mes_leads(
             if applies:
                 lead.evidence.append(Evidence(kind, hit.published_on, title, hit.snippet, hit.url))
 
-    ranked = [lead for lead in leads.values() if lead.score >= min_score]
-    for lead in ranked:
+    for lead in leads.values():
         lead.evidence.sort(key=lambda e: e.on or date.min, reverse=True)
+        lead.assign_points()
+    ranked = [lead for lead in leads.values() if lead.score >= min_score]
     return sorted(ranked, key=lambda lead: (lead.score, _latest(lead)), reverse=True)
 
 
-def _targets(session: Session, cantons: Collection[str]) -> dict[str, MesLead]:
+def _targets(
+    session: Session, cantons: Collection[str], uids: Collection[str] | None
+) -> dict[str, MesLead]:
     query = select(SwissmedicSite).where(
         SwissmedicSite.company_uid.is_not(None),
         SwissmedicSite.activity_codes.overlap(list(MES_ACTIVITIES)),
     )
     if cantons:
         query = query.where(SwissmedicSite.site_canton.in_(cantons))
+    if uids is not None:
+        query = query.where(SwissmedicSite.company_uid.in_(list(uids)))
     sites: dict[str, list[SwissmedicSite]] = defaultdict(list)
     for site in session.scalars(query):
         sites[site.company_uid or ""].append(site)
