@@ -4,19 +4,21 @@ import { getJson } from "./api";
 import { CompanyProfile } from "./views/CompanyProfile";
 import { CompanySearch } from "./views/CompanySearch";
 import { Leads } from "./views/Leads";
+import { MesLeads } from "./views/MesLeads";
 import { Targets } from "./views/Targets";
 
 type Health = { status: string; version: string };
-type Tab = "leads" | "targets" | "company";
+type Tab = "mes" | "leads" | "targets" | "company";
 
 const TABS: Array<[Tab, string]> = [
+  ["mes", "MES leads"],
   ["leads", "Leads"],
   ["targets", "Investment targets"],
   ["company", "Company check"],
 ];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("leads");
+  const [tab, setTab] = useState<Tab>("mes");
   const [openUid, setOpenUid] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [failed, setFailed] = useState(false);
@@ -59,6 +61,9 @@ export default function App() {
           <CompanyProfile uid={openUid} onBack={() => setOpenUid(null)} />
         ) : (
           <>
+            <div hidden={tab !== "mes"}>
+              <MesLeads onOpenCompany={setOpenUid} />
+            </div>
             <div hidden={tab !== "leads"}>
               <Leads onOpenCompany={setOpenUid} />
             </div>
@@ -72,8 +77,9 @@ export default function App() {
         )}
       </main>
       <footer className="muted">
-        Sources: Zefix (Federal Commercial Registry Office, via LINDAS), SHAB/SOGC (SECO,
-        amtsblattportal.ch), Swissmedic establishment licences (opendata.swiss).
+        Sources: Zefix (Federal Commercial Registry Office, via LINDAS), SHAB/SOGC and cantonal
+        gazettes (SECO, amtsblattportal.ch), Swissmedic licences and medicines (opendata.swiss),
+        Wikidata, company websites.
       </footer>
     </div>
   );

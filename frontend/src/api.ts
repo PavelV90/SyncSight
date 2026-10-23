@@ -54,6 +54,23 @@ export type Target = {
   notice_url: string;
 };
 
+export type Evidence = {
+  kind: string;
+  on: string | null;
+  title: string;
+  detail: string | null;
+  url: string | null;
+};
+
+export type MesLead = {
+  company: Company;
+  score: number;
+  site_cantons: string[];
+  activities: string[];
+  vendors: string[];
+  evidence: Evidence[];
+};
+
 type Params = Record<string, string | number | boolean | Array<string | number>>;
 
 export async function getJson<T>(path: string, params: Params = {}): Promise<T> {
