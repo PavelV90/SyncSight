@@ -11,7 +11,7 @@ Requires Docker. For running checks outside Docker: [uv](https://docs.astral.sh/
 docker compose up --build
 ```
 
-- Web: http://localhost:5173
+- Web: http://localhost:5173 (tabs: Leads, Investment targets, Company check)
 - API: http://localhost:8010/docs
 - Postgres: `localhost:5433` (user/password `syncsight`)
 
@@ -43,6 +43,8 @@ uv run syncsight-ingest shab-swissmedic
 2. `swissmedic`: licensed pharma sites, linked to companies by name.
 3. `shab`: commercial-register notices in a date range (default: yesterday and today). `--uid CHE-…` fetches one company's full history.
 4. `shab-swissmedic`: full notice history of every company linked to a Swissmedic licence. This takes hours, at about 5 requests per second.
+
+After changing the notice text rules, run `uv run syncsight-ingest reclassify`.
 
 Run `zefix` daily and `shab` daily to stay current. Sources and licences are listed in `ARCHITECTURE.md`.
 

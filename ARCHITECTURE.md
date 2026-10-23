@@ -1,6 +1,6 @@
 # SyncSight — Architecture
 
-> Living document. Status: **MVP ingestion** (2026-10-22). Every architecture decision goes into the [decision log](#decision-log).
+> Living document. Status: **MVP search** (2026-10-23). Every architecture decision goes into the [decision log](#decision-log).
 
 ## Overview
 
@@ -18,8 +18,8 @@ MVP = search, filters and scoring over free official Swiss data. **No LLM, CHF 0
 |---|---|---|
 | Ingestion | Python 3.13, httpx2, defusedxml, openpyxl; one module per source; CLI `syncsight-ingest` | `backend/src/syncsight/ingestion/` |
 | Storage | PostgreSQL 18, SQLAlchemy 2, Alembic; full-text search (`simple` config, multilingual) | `backend/src/syncsight/db/`, `backend/migrations/` |
-| API | FastAPI | `backend/src/syncsight/api/` |
-| UI | React 19 + TypeScript + Vite (SPA) | `frontend/` |
+| API | FastAPI: `/api/companies`, `/api/companies/{uid}`, `/api/leads`, `/api/targets` (OpenAPI docs at `/docs`) | `backend/src/syncsight/api/` |
+| UI | React 19 + TypeScript + Vite (SPA): Leads, Investment targets, Company check | `frontend/` |
 | Dev / CI | Docker Compose, uv, npm, GitHub Actions | `compose.yaml`, `.github/workflows/ci.yml` |
 
 Entity key: the company **UID** (`CHE-xxx.xxx.xxx`). Sources without a UID (Swissmedic) are matched on name and address.
@@ -42,10 +42,18 @@ Deferred: **company reports**. Only listed companies and bond issuers must publi
 
 "Health" means warning signs from register events. Private companies publish no financials.
 
+How each one is answered:
+1. **Leads:** licence sites in the chosen cantons with the chosen activity (default: manufacturing), joined to SHAB notices labelled `board` or `management` in the last N days.
+2. **Targets:** full-text match on purpose. Founding date = the company's HR01 notice. A raise = a notice whose capital exceeds the capital stated in the company's previous notice.
+3. **Health check:** company timeline filtered to `capital`, `auditor`, `seat`, `liquidation`, `bankruptcy`, `deletion`, showing capital before → after.
+
+Change labels come from two places: structured XML flags (capital, seat, name, purpose, address, liquidation, bankruptcy, registration, deletion) and regex rules on the DE/FR/IT notice text (board, management, auditor). The text rules ignore the company name and purpose.
+
 ## Current state and next steps
 
 Done:
 - Skeleton per layer, Docker Compose, CI.
+- Search API and UI for the three use cases.
 - Ingestion (`syncsight-ingest`, see README):
   - Zefix: all 795,744 active companies.
   - SHAB: daily pull, plus per-company history.
@@ -53,10 +61,10 @@ Done:
 - Tables `company`, `sogc_notice`, `swissmedic_site`.
 
 Next:
-1. Backfill: `shab-swissmedic` (history of licensed companies), then daily `zefix` + `shab` runs.
-2. Rule-based parsing of the notice text: board and management changes, auditor changes. These are mostly labelled `other` today.
-3. Search API and UI for the three use cases.
-4. Retention job: delete notices the portal no longer serves.
+1. Daily `zefix` + `shab` runs (cron or a scheduler container).
+2. Measure precision of the text rules on a labelled sample, then refine them.
+3. Retention job: delete notices the portal no longer serves.
+4. Use case 2 only covers companies whose history is loaded. Widen it with HR01 backfill or Zefix REST.
 5. Later: Zefix REST for founding date and capital of companies without SHAB history; LLM chat (D5); company reports (D9).
 
 ## Decision log
@@ -138,3 +146,15 @@ Next:
 - **Options:** fuzzy matching; exact normalised name with a postal-code tie-break; manual mapping.
 - **Choice:** exact normalised name (case, quotes, spacing ignored); postal code decides between namesakes; otherwise unlinked.
 - **Consequence:** precision over recall: 949 of 997 holders linked. The unlinked ones are mostly public bodies (not in the register) or names with extra address text.
+
+### D14 · 2026-10-23 · Board, management and auditor changes from regex rules on notice text
+- **Context:** the SHAB XML only flags structural changes. Changes of persons and auditors are in the free text (DE/FR/IT).
+- **Options:** regex rules on register wording; ML/LLM classification (excluded by D5); no labels.
+- **Choice:** case-insensitive regex per label, matched after removing the company name and purpose. Labels are stored with the structured flags; `reclassify` re-applies them.
+- **Consequence:** cheap and explainable; precision not yet measured. A purpose change that names "Verwaltungsrat" outside the purpose field can still mislabel.
+
+### D15 · 2026-10-23 · Definitions behind use cases 2 and 3
+- **Context:** free data has no founding-date field and no financials.
+- **Options:** Zefix REST (needs credentials); derive from SHAB notices.
+- **Choice:** founding date = HR01 notice. Capital raise = notice capital above the previous notice's capital. Health = register events (capital, auditor, seat, liquidation, bankruptcy, deletion).
+- **Consequence:** only companies registered since late 2019 (portal start) can have a founding date, which fits "founded since 2020". Results cover only companies whose history is loaded.
