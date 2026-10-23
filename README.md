@@ -7,6 +7,8 @@ See `PROJECT_BRIEF.md` (what and why) and `ARCHITECTURE.md` (how, decision log).
 
 Requires Docker. For running checks outside Docker: [uv](https://docs.astral.sh/uv/) and Node 24+.
 
+On a Mac, double-click `start.command` (starts Docker Desktop if needed, then opens the app) and `stop.command`. Or from a terminal:
+
 ```bash
 docker compose up --build
 ```
