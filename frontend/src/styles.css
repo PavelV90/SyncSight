@@ -1,0 +1,111 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1d2733;
+  background: #f6f7f9;
+  line-height: 1.4;
+}
+body {
+  margin: 0;
+}
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+.api-status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #5b6573;
+}
+nav {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0;
+  border-bottom: 1px solid #d5d9e0;
+}
+.tab {
+  border: none;
+  background: none;
+  padding: 8px 14px;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab.active {
+  border-bottom-color: #c8102e;
+  font-weight: 600;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 12px 0;
+}
+.filters input:not([type="checkbox"]),
+.filters select {
+  display: block;
+  padding: 6px;
+  margin-top: 2px;
+}
+button[type="submit"] {
+  padding: 7px 14px;
+  background: #c8102e;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #0b5cad;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e6e9ee;
+}
+tr.warning {
+  background: #fdecee;
+}
+.notice-text {
+  font-size: 0.85rem;
+  color: #3e4856;
+  max-width: 520px;
+}
+.muted,
+.hint {
+  color: #5b6573;
+}
+.purpose {
+  max-width: 900px;
+}
+.results {
+  padding-left: 18px;
+}
+footer {
+  margin-top: 32px;
+  font-size: 0.8rem;
+}
