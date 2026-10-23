@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getJson } from "./api";
+import { DataFreshness } from "./components/DataFreshness";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { OpenCompany, OpenOptions } from "./lib/navigation";
 import { CompanyProfile } from "./views/CompanyProfile";
@@ -63,7 +64,10 @@ export default function App() {
       <header>
         <h1>SyncSight</h1>
         <span className="muted">Swiss company intelligence</span>
-        <span className="api-status muted small">{health ? `v${health.version}` : ""}</span>
+        <span className="api-status">
+          {!offline && <DataFreshness />}
+          <span className="muted small">{health ? ` v${health.version}` : ""}</span>
+        </span>
       </header>
       {offline && (
         <div role="alert" className="banner">

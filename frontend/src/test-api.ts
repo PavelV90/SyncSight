@@ -38,7 +38,11 @@ export const notice = {
 
 export const mesLead = {
   company,
-  score: 9,
+  score: 5,
+  breakdown: [
+    { kind: "permit_production", items: 1, counted: 1, points_each: 3, points: 3 },
+    { kind: "web_hiring", items: 1, counted: 1, points_each: 2, points: 2 },
+  ],
   site_cantons: ["BS"],
   activities: ["Manufacturing"],
   vendors: ["PharmaSuite"],
@@ -49,6 +53,7 @@ export const mesLead = {
       title: "Building permit: Neubau Produktionsgebäude",
       detail: "Werkstrasse 1, Basel",
       url: "https://www.shab.ch/#!/search/publications/detail/p1",
+      points: 3,
     },
     {
       kind: "web_hiring",
@@ -56,6 +61,7 @@ export const mesLead = {
       title: "MES Engineer",
       detail: null,
       url: "https://a.ch/jobs/1",
+      points: 2,
     },
   ],
 };

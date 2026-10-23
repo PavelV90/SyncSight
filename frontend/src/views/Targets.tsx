@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { formatChf, formatDate, getJson, type Target } from "../api";
+import { Highlight } from "../components/Highlight";
 import { PeriodSelect, periodLabel } from "../components/PeriodSelect";
 import { ResultBar } from "../components/ResultBar";
 import { SearchSyntaxHint } from "../components/SearchSyntaxHint";
@@ -179,6 +180,7 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
               { header: "UID", value: (t) => t.company.uid },
               { header: "Legal form", value: (t) => t.company.legal_form },
               { header: "Canton", value: (t) => t.company.canton },
+              { header: "Purpose match", value: (t) => t.purpose_excerpt?.replace(/[⟦⟧]/g, "") },
               { header: "Founded", value: (t) => t.founded_on },
               { header: "Capital raised on", value: (t) => t.raised_on },
               { header: "Capital before (CHF)", value: (t) => t.capital_before },
@@ -264,6 +266,11 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
                         .filter(Boolean)
                         .join(" · ")}
                     </div>
+                    {t.purpose_excerpt && (
+                      <div className="notice-text">
+                        <Highlight text={t.purpose_excerpt} />
+                      </div>
+                    )}
                   </td>
                   <td className="nowrap">
                     <time dateTime={t.founded_on}>{formatDate(t.founded_on)}</time>

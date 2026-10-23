@@ -9,9 +9,11 @@ import {
 } from "../api";
 import { Chips } from "../components/Chips";
 import { Clamp } from "../components/Clamp";
+import { EvidenceList } from "../components/EvidenceList";
 import { PeriodSelect } from "../components/PeriodSelect";
 import { Status } from "../components/Status";
 import { Th } from "../components/SortableTh";
+import { breakdownText } from "../lib/kinds";
 import { changeLabel, HEALTH_CHANGES, RUBRICS, visibleChanges, WARNINGS } from "../lib/labels";
 import type { OpenOptions } from "../lib/navigation";
 import { useQuery } from "../lib/useQuery";
@@ -75,10 +77,45 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
               <span className="badge badge--warning">{data.status}</span>
             )}
           </h2>
-          <p className="muted">
-            {data.uid} · {data.legal_form} · {data.address ?? data.seat}
-          </p>
+          <div className="profile-meta">
+            <span>{data.legal_form}</span>
+            <span>
+              {data.uid} <CopyButton text={data.uid} label="Copy UID" />
+            </span>
+            <span>{data.address ?? data.seat}</span>
+            <span className="links">
+              <a
+                href={`https://www.zefix.admin.ch/en/search/entity/list?mainSearch=${data.uid}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Zefix ↗
+              </a>
+              {data.website && (
+                <a href={data.website} target="_blank" rel="noreferrer">
+                  Website ↗
+                </a>
+              )}
+            </span>
+          </div>
           <Clamp text={data.purpose} lines={3} minLength={300} className="purpose" />
+
+          {data.mes && (
+            <>
+              <h3>
+                MES signals <span className="score">{data.mes.score}</span>
+              </h3>
+              <p className="muted small">
+                {breakdownText(data.mes.breakdown, data.mes.score)} · last 2 years
+                {data.mes.vendors.length > 0 && ` · vendors named: ${data.mes.vendors.join(", ")}`}
+              </p>
+              {data.mes.evidence.length > 0 ? (
+                <EvidenceList evidence={data.mes.evidence} breakdown={data.mes.breakdown} />
+              ) : (
+                <p className="status">No MES signals in the last 2 years.</p>
+              )}
+            </>
+          )}
 
           {data.sites.length > 0 && (
             <>
@@ -98,6 +135,19 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
           )}
 
           <h3>Register timeline</h3>
+          <p className="muted small">
+            {data.history_fetched_at
+              ? `Full SHAB history loaded ${formatDate(data.history_fetched_at)}`
+              : "Full SHAB history not loaded – only notices from daily pulls"}
+            {data.notice_count > 0 &&
+              ` · ${data.notice_count} notices back to ${formatDate(data.earliest_notice)}`}
+            {!data.history_fetched_at && (
+              <>
+                {" "}
+                · load it with <code>uv run syncsight-ingest shab --uid {data.uid}</code>
+              </>
+            )}
+          </p>
           <div className="filters">
             <label className="inline">
               <input
@@ -124,7 +174,11 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
           {shown.length === 0 ? (
             <p className="status">
               {timeline.length === 0 ? (
-                "No register notices in this period (history may not be loaded yet)."
+                data.history_fetched_at || data.notice_count > 0 ? (
+                  "No register notices in this period."
+                ) : (
+                  "No register notices loaded for this company yet (see above)."
+                )
               ) : (
                 <>
                   No health events in this period.{" "}
@@ -205,5 +259,23 @@ function TimelineRow({ notice: n, focused, rowRef }: RowProps) {
         <Clamp text={n.text} lines={2} minLength={160} className="notice-text" />
       </td>
     </tr>
+  );
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="link small"
+      onClick={() =>
+        void navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        })
+      }
+    >
+      {copied ? "Copied ✓" : label}
+    </button>
   );
 }

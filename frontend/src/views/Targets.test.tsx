@@ -13,6 +13,7 @@ const target = (name: string, before: number, after: number) => ({
   capital_before: before,
   capital_after: after,
   notice_url: "https://www.shab.ch/#!/search/publications/detail/n2",
+  purpose_excerpt: "Entwicklung von ⟦Medtech⟧-Geräten",
 });
 
 it("loads on open and sorts by capital increase", async () => {
@@ -42,4 +43,12 @@ it("filters by minimum increase and reports the count", async () => {
 
   expect(screen.queryByRole("button", { name: "Small AG" })).not.toBeInTheDocument();
   expect(screen.getByText(/1 of 2 companies/)).toBeInTheDocument();
+});
+
+it("highlights where the purpose matched", async () => {
+  mockApi({ "/api/targets": [target("Big AG", 100000, 600000)] });
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
+
+  const mark = await screen.findByText("Medtech", { selector: "mark" });
+  expect(mark.parentElement).toHaveTextContent("Entwicklung von Medtech-Geräten");
 });

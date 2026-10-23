@@ -33,8 +33,13 @@ export type Site = {
 export type CompanyProfile = Company & {
   purpose: string | null;
   address: string | null;
+  website: string | null;
+  history_fetched_at: string | null;
+  notice_count: number;
+  earliest_notice: string | null;
   sites: Site[];
   timeline: Notice[];
+  mes: MesLead | null;
 };
 
 export type Lead = {
@@ -52,6 +57,7 @@ export type Target = {
   capital_before: number;
   capital_after: number;
   notice_url: string;
+  purpose_excerpt: string | null; // matched words wrapped in ⟦ ⟧
 };
 
 export type Evidence = {
@@ -60,11 +66,33 @@ export type Evidence = {
   title: string;
   detail: string | null;
   url: string | null;
+  points: number;
+};
+
+export type KindScore = {
+  kind: string;
+  items: number;
+  counted: number;
+  points_each: number;
+  points: number;
+};
+
+export type ScoringRule = { kind: string; points: number; max_items: number };
+
+export type SourceStatus = {
+  key: string;
+  label: string;
+  rows: number;
+  last_loaded_at: string | null;
+  newest_record: string | null;
+  stale: boolean;
+  command: string;
 };
 
 export type MesLead = {
   company: Company;
   score: number;
+  breakdown: KindScore[];
   site_cantons: string[];
   activities: string[];
   vendors: string[];

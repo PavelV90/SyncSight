@@ -412,6 +412,58 @@ details summary {
   padding-left: 18px;
 }
 
+/* profile, evidence, freshness */
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+.profile-meta .links {
+  display: flex;
+  gap: 12px;
+}
+.evidence-group h4 {
+  margin: 8px 0 2px;
+  font-size: 0.95rem;
+}
+table.compact th,
+table.compact td {
+  padding: 3px 8px;
+}
+.scoring-rules {
+  margin: 4px 0 8px;
+}
+.scoring-rules table {
+  width: auto;
+}
+.freshness {
+  display: inline-block;
+  position: relative;
+  margin-right: 8px;
+}
+.freshness summary {
+  list-style: none;
+  cursor: pointer;
+}
+.freshness-panel {
+  position: absolute;
+  right: 0;
+  z-index: 5;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  min-width: 560px;
+}
+mark {
+  background: #fff1a8;
+  padding: 0 1px;
+}
+
 /* text helpers */
 .muted,
 .hint {

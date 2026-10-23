@@ -2,31 +2,19 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { daysAgo, formatDate, formatRelative, getJson, type MesLead } from "../api";
 import { CantonPicker } from "../components/CantonPicker";
+import { EvidenceList } from "../components/EvidenceList";
 import { Chips } from "../components/Chips";
 import { PeriodSelect, periodLabel } from "../components/PeriodSelect";
 import { ResultBar } from "../components/ResultBar";
+import { ScoringRules } from "../components/ScoringRules";
 import { SortableTh, Th } from "../components/SortableTh";
 import { Status } from "../components/Status";
 import { toCsv } from "../lib/csv";
+import { breakdownText, KINDS, kindLabel } from "../lib/kinds";
 import type { ListViewProps } from "../lib/navigation";
 import { useQuery } from "../lib/useQuery";
 import { useSort } from "../lib/useSort";
 
-// Evidence kinds as shown to users (backend: syncsight/db/mes.py)
-export const KINDS: Record<string, string> = {
-  web_mes: "MES on website",
-  web_hiring: "Hiring for MES",
-  web_vendor: "MES vendor named",
-  permit_production: "Production building permit",
-  permit_other: "Building permit",
-  licence_change: "Licence change",
-  web_expansion: "Expansion news",
-  web_digital: "Digitalisation news",
-  management_change: "Management change",
-  capital_raise: "Capital increase",
-  new_medicine: "New medicines",
-};
-const kindLabel = (kind: string) => KINDS[kind] ?? kind;
 const kindsOf = (lead: MesLead) => [...new Set(lead.evidence.map((e) => e.kind))];
 const latest = (lead: MesLead) => lead.evidence.find((e) => e.on) ?? null;
 
@@ -36,8 +24,6 @@ const DEFAULTS: Filters = { days: 730, cantons: [], minScore: 3 };
 /** Licensed pharma manufacturers ranked by MES signals, with the evidence behind each score. */
 export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
   const [filters, setFilters] = useState(DEFAULTS);
-  const [minScoreText, setMinScoreText] = useState(String(DEFAULTS.minScore));
-  const [scoreError, setScoreError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(DEFAULTS);
   const [mustHave, setMustHave] = useState<string[]>([]);
   const [{ data, loading, error }, run, retry] = useQuery<MesLead[]>();
@@ -62,21 +48,11 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const minScore = Number(minScoreText);
-    if (!Number.isInteger(minScore) || minScore < 0 || minScore > 30) {
-      setScoreError("Enter a whole number from 0 to 30.");
-      return;
-    }
-    setScoreError(null);
-    const next = { ...filters, minScore };
-    setFilters(next);
-    search(next);
+    search(filters);
   }
 
   function reset() {
     setFilters(DEFAULTS);
-    setMinScoreText(String(DEFAULTS.minScore));
-    setScoreError(null);
     setMustHave([]);
     search(DEFAULTS);
   }
@@ -116,6 +92,7 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
         permits, MES or vendor mentions on their websites and career pages, licence changes, and
         management changes. Open a row's evidence to see why it scores.
       </p>
+      <ScoringRules />
       <form onSubmit={submit} className="filters" noValidate>
         <PeriodSelect
           value={filters.days}
@@ -130,19 +107,16 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
         />
         <label>
           Minimum score
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={30}
-            value={minScoreText}
-            aria-invalid={scoreError ? true : undefined}
-            aria-describedby="mes-score-help"
-            onChange={(e) => setMinScoreText(e.target.value)}
-          />
-          <span id="mes-score-help" className={scoreError ? "field-error" : "hint small"}>
-            {scoreError ?? "Higher = more signals"}
-          </span>
+          <select
+            value={filters.minScore}
+            onChange={(e) => setFilters({ ...filters, minScore: Number(e.target.value) })}
+          >
+            {[1, 3, 5, 8].map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? "Any signal (≥ 1)" : `≥ ${n}`}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="form-actions">
           <button type="submit" className="primary" disabled={loading} aria-busy={loading}>
@@ -194,6 +168,7 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
             filename: "syncsight-mes-leads.csv",
             content: toCsv(sorted, [
               { header: "Score", value: (l) => l.score },
+              { header: "Score breakdown", value: (l) => breakdownText(l.breakdown, l.score) },
               { header: "Company", value: (l) => l.company.name },
               { header: "UID", value: (l) => l.company.uid },
               { header: "Licence sites in", value: (l) => l.site_cantons.join(", ") },
@@ -253,7 +228,12 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
                     key={lead.company.uid}
                     className={lead.company.uid === openedUid ? "row--opened" : undefined}
                   >
-                    <td className="num score">{lead.score}</td>
+                    <td className="num">
+                      <span className="score" title={breakdownText(lead.breakdown, lead.score)}>
+                        {lead.score}
+                      </span>
+                      <span className="sr-only">: {breakdownText(lead.breakdown, lead.score)}</span>
+                    </td>
                     <td>
                       <button
                         type="button"
@@ -291,25 +271,18 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
                     <td>
                       <details>
                         <summary>
-                          <Chips items={kindsOf(lead)} label={kindLabel} />
+                          <span className="chips">
+                            {lead.breakdown.map((k) => (
+                              <span key={k.kind} className="chip">
+                                {kindLabel(k.kind)}{" "}
+                                <span className="muted">
+                                  {k.counted}×{k.points_each}
+                                </span>
+                              </span>
+                            ))}
+                          </span>
                         </summary>
-                        <ul className="evidence">
-                          {lead.evidence.map((e, i) => (
-                            <li key={i}>
-                              <span className="muted nowrap">
-                                {e.on ? formatDate(e.on) : "current"}
-                              </span>{" "}
-                              {e.url ? (
-                                <a href={e.url} target="_blank" rel="noreferrer">
-                                  {e.title}
-                                </a>
-                              ) : (
-                                e.title
-                              )}
-                              {e.detail && <div className="notice-text">{e.detail}</div>}
-                            </li>
-                          ))}
-                        </ul>
+                        <EvidenceList evidence={lead.evidence} breakdown={lead.breakdown} />
                       </details>
                     </td>
                   </tr>
