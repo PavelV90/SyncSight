@@ -40,6 +40,13 @@ PRODUCTION_WORDS = re.compile(
     r"|produzione|fabbrica|laboratorio|cleanroom|manufactur",
     re.IGNORECASE,
 )
+DEMOLITION_WORDS = re.compile(r"rückbau|abbruch|abriss|démolition|demolizione", re.IGNORECASE)
+
+
+def is_production(description: str | None) -> bool:
+    """Production, lab or cleanroom project that is not a demolition."""
+    text = description or ""
+    return bool(PRODUCTION_WORDS.search(text)) and not DEMOLITION_WORDS.search(text)
 
 
 @dataclass(frozen=True)

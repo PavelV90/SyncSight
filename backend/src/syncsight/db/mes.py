@@ -22,7 +22,7 @@ from syncsight.db.models import (
     WebHit,
 )
 from syncsight.db.queries import investment_targets_raises
-from syncsight.ingestion.permits import PRODUCTION_WORDS
+from syncsight.ingestion.permits import is_production
 from syncsight.ingestion.shab import PUBLIC_URL
 
 MES_ACTIVITIES = (1, 3)  # manufacturing, API manufacturing
@@ -83,7 +83,7 @@ def mes_leads(
             BuildingPermit.company_uid.in_(uids), BuildingPermit.publication_date >= since
         )
     ):
-        production = bool(PRODUCTION_WORDS.search(permit.description or ""))
+        production = is_production(permit.description)
         leads[permit.company_uid].evidence.append(
             Evidence(
                 "permit_production" if production else "permit_other",

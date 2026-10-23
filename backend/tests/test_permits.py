@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from syncsight.db.models import BuildingPermit, Company
 from syncsight.ingestion import permits
-from syncsight.ingestion.permits import PRODUCTION_WORDS, parse_permit
+from syncsight.ingestion.permits import is_production, parse_permit
 
 # Synthetic notices in the two Amtsblattportal formats. Fictional companies and places.
 STRUCTURED = b"""<BP-BS10:publication xmlns:BP-BS10="https://amtsblattportal.ch/BP-BS10">
@@ -59,7 +59,8 @@ def test_parses_structured_format() -> None:
     assert notice.description == "Neubau Produktionsgebäude (Bau 7)"
     assert notice.location == "Werkstrasse 1, 4058 Basel"
     assert notice.municipality == "Basel"
-    assert PRODUCTION_WORDS.search(notice.description or "")
+    assert is_production(notice.description)
+    assert not is_production("Rückbau Laborcontainer")
 
 
 def test_parses_business_case_format_and_skips_natural_persons() -> None:

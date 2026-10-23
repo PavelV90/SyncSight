@@ -20,4 +20,5 @@ def test_normalize_uid(raw: str | None, expected: str | None) -> None:
 
 def test_name_key_ignores_case_quotes_and_spacing() -> None:
     assert name_key("«Alpen» Pharma  AG") == name_key('"alpen" pharma ag') == "alpen pharma ag"
+    assert name_key("F. Hoffmann - La Roche AG") == name_key("F. Hoffmann-La Roche AG")
     assert name_key("L’Atelier Sàrl") == name_key("L'Atelier SÀRL")  # noqa: RUF001

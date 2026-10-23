@@ -23,4 +23,5 @@ def name_key(name: str) -> str:
     """Case-, quote- and whitespace-insensitive key for matching company names across sources."""
     text = unicodedata.normalize("NFKC", name).translate(_QUOTES).casefold()
     text = re.sub(r"[\"'.,]", "", text)
+    text = re.sub(r"\s*-\s*", "-", text)  # "Hoffmann - La Roche" = "Hoffmann-La Roche"
     return re.sub(r"\s+", " ", text).strip()
