@@ -115,3 +115,87 @@ class SwissmedicSite(Base):
     activity_details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     company_uid: Mapped[str | None] = mapped_column(String(15), index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BuildingPermit(Base):
+    """A building-permit notice (cantonal gazettes on amtsblattportal.ch) filed by a company.
+
+    Only company applicants are stored; notices filed by natural persons are dropped at parse time.
+    """
+
+    __tablename__ = "building_permit"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    company_uid: Mapped[str] = mapped_column(String(15), primary_key=True)
+    publication_number: Mapped[str] = mapped_column(Text)
+    publication_date: Mapped[date] = mapped_column(Date)
+    sub_rubric: Mapped[str] = mapped_column(String(12))
+    cantons: Mapped[str | None] = mapped_column(Text)
+    municipality: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(Text)
+    applicant_name: Mapped[str] = mapped_column(Text)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_building_permit_company_date", "company_uid", "publication_date"),)
+
+
+class SwissmedicSiteChange(Base):
+    """Difference between two Swissmedic licence snapshots (site, activity or compliance)."""
+
+    __tablename__ = "swissmedic_site_change"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    detected_on: Mapped[date] = mapped_column(Date)
+    licence_number: Mapped[str] = mapped_column(Text)
+    site_number: Mapped[str] = mapped_column(Text)
+    company_uid: Mapped[str | None] = mapped_column(String(15), index=True)
+    kind: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str | None] = mapped_column(Text)
+
+
+class Medicine(Base):
+    """An authorised medicinal product (Swissmedic open data), linked to its holder company."""
+
+    __tablename__ = "medicine"
+
+    authorisation_number: Mapped[str] = mapped_column(Text, primary_key=True)
+    product_name: Mapped[str] = mapped_column(Text)
+    usage: Mapped[str | None] = mapped_column(String(8))
+    atc_code: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str | None] = mapped_column(String(4))
+    first_authorised_on: Mapped[date | None] = mapped_column(Date)
+    holder_name: Mapped[str | None] = mapped_column(Text)
+    holder_name_key: Mapped[str | None] = mapped_column(Text, index=True)
+    holder_postal_code: Mapped[str | None] = mapped_column(String(10))
+    company_uid: Mapped[str | None] = mapped_column(String(15), index=True)
+
+
+class CompanyWebsite(Base):
+    """A company's website and how it was found or verified."""
+
+    __tablename__ = "company_website"
+
+    company_uid: Mapped[str] = mapped_column(String(15), primary_key=True)
+    url: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text)  # lindas | wikidata | verified-guess | manual | none
+    evidence: Mapped[str | None] = mapped_column(Text)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WebHit(Base):
+    """A company web page or feed item whose text matched MES-signal keywords.
+
+    Only URL, title, date, matched keywords and a short snippet are kept, never the page text.
+    """
+
+    __tablename__ = "web_hit"
+
+    company_uid: Mapped[str] = mapped_column(String(15), primary_key=True)
+    url: Mapped[str] = mapped_column(Text, primary_key=True)
+    kind: Mapped[str] = mapped_column(Text)  # feed | news | career | page
+    title: Mapped[str | None] = mapped_column(Text)
+    published_on: Mapped[date | None] = mapped_column(Date)
+    keywords: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    snippet: Mapped[str | None] = mapped_column(Text)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
