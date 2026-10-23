@@ -1,6 +1,6 @@
 # SyncSight — Architecture
 
-> Living document. Status: **MVP search** (2026-10-23). Every architecture decision goes into the [decision log](#decision-log).
+> Living document. Status: **MVP search + MES signals** (2026-10-23). Every architecture decision goes into the [decision log](#decision-log).
 
 ## Overview
 
@@ -18,8 +18,8 @@ MVP = search, filters and scoring over free official Swiss data. **No LLM, CHF 0
 |---|---|---|
 | Ingestion | Python 3.13, httpx2, defusedxml, openpyxl; one module per source; CLI `syncsight-ingest` | `backend/src/syncsight/ingestion/` |
 | Storage | PostgreSQL 18, SQLAlchemy 2, Alembic; full-text search (`simple` config, multilingual) | `backend/src/syncsight/db/`, `backend/migrations/` |
-| API | FastAPI: `/api/companies`, `/api/companies/{uid}`, `/api/leads`, `/api/targets` (OpenAPI docs at `/docs`) | `backend/src/syncsight/api/` |
-| UI | React 19 + TypeScript + Vite (SPA): Leads, Investment targets, Company check | `frontend/` |
+| API | FastAPI: `/api/companies`, `/api/companies/{uid}`, `/api/leads`, `/api/targets`, `/api/mes-leads` (OpenAPI docs at `/docs`) | `backend/src/syncsight/api/` |
+| UI | React 19 + TypeScript + Vite (SPA): MES leads, Leads, Investment targets, Company check | `frontend/` |
 | Dev / CI | Docker Compose, uv, npm, GitHub Actions | `compose.yaml`, `.github/workflows/ci.yml` |
 
 Entity key: the company **UID** (`CHE-xxx.xxx.xxx`). Sources without a UID (Swissmedic) are matched on name and address.
@@ -32,6 +32,17 @@ Entity key: the company **UID** (`CHE-xxx.xxx.xxx`). Sources without a UID (Swis
 | [SHAB/SOGC](https://www.amtsblattportal.ch/api/v1/publications) notices: register changes, liquidations, bankruptcies | Public REST API: list by date range or keyword (a UID gives one company's history), then one XML per notice; 0.2 s between requests. Rubric HR only | Public register data; personal data generally accessible ([revDSG Art. 30(3)](https://www.fedlex.admin.ch/eli/cc/2022/491/de#art_30)); portal terms of use to be confirmed with SECO Notice text is never full-text indexed; no search by person name. HR notices stay public (register, [OR Art. 936](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_936)). Delete a notice once the portal withdraws it; bankruptcy-office notices (rubric KK, not ingested) only for 5 years ([VSHAB Art. 11](https://www.fedlex.admin.ch/eli/cc/2006/78/de#art_11)) |
 | [Swissmedic establishment licences](https://opendata.swiss/en/dataset/betriebsbewilligungen): ~1,270 pharma sites, activities, last inspection, compliance | XLSX download, full snapshot each run; holders linked to companies by normalised name (postal code breaks ties) | OGD "open use" | Attribute the source |
 
+### MES-signal sources (consulting leads for MES, e.g. Tulip or PharmaSuite)
+
+| Source | Access | Legal basis | Rules we follow |
+|---|---|---|---|
+| Building permits (cantonal gazettes, 15 sub-rubrics: BS, BL, ZH, ZG, BE, TI, VS, SO, SZ, SH, NW, OW, AR, GR, municipalities) | Amtsblattportal API, searched per licensed company by registered name | Official publications | Keep only company applicants; natural persons are never parsed (revDSG Art. 6). Not covered: AG, GE, LU, SG, VD and others that publish elsewhere |
+| Swissmedic licence history | Monthly snapshot compared with the previous one | OGD "open use" | – |
+| [Swissmedic authorised medicines](https://opendata.swiss/en/dataset/daten-von-human-und-tierarzneimitteln) | Monthly ZIP (XML) | OGD "open use" | – |
+| Company websites, newsroom feeds, career pages | Website from Zefix/LINDAS, [Wikidata](https://www.wikidata.org/wiki/Property:P4829) (CC0), or a guessed domain verified by UID/registered name; polite crawler | Public pages, no login ([StGB Art. 143bis](https://www.fedlex.admin.ch/eli/cc/54/757_781_799/de#art_143_bis)); no republishing ([UWG Art. 5c](https://www.fedlex.admin.ch/eli/cc/1988/223_223_223/de#art_5), [BGE 131 III 384](https://www.servat.unibe.ch/dfr/bge/c3131384.html)); transient copies only ([URG Art. 24a](https://www.fedlex.admin.ch/eli/cc/1993/1798_1798_1798/de#art_24_a)) | robots.txt (RFC 9309); one request per host every 2 s; max 25 pages per site; store URL, title, date, keyword labels and a snippet of ≤160 characters, never page text; `SYNCSIGHT_CRAWL_BLOCKLIST` for opt-outs |
+
+Excluded: LinkedIn and job boards ([LinkedIn User Agreement §8.2](https://www.linkedin.com/help/linkedin/answer/a1341387) bans crawlers); presseportal.ch ([terms](https://www.presseportal.ch/de/nutzungsbedingungen): business use needs written permission); simap.ch public tenders (allowed, but private pharma doesn't tender publicly).
+
 Deferred: **company reports**. Only listed companies and bond issuers must publish accounts ([OR Art. 958e](https://www.fedlex.admin.ch/eli/cc/27/317_321_377/de#art_958_e)). Copying reports wholesale risks [URG](https://www.fedlex.admin.ch/eli/cc/1993/1798_1798_1798/de#art_24_d) and [UWG Art. 5c](https://www.fedlex.admin.ch/eli/cc/1988/223_223_223/de#art_5). Links and individual facts are fine.
 
 ## MVP use cases
@@ -41,6 +52,19 @@ Deferred: **company reports**. Only listed companies and bond issuers must publi
 3. **Health check:** "What changed at company X in the last 5 years: capital, auditor, seat, liquidation or bankruptcy?" (Zefix + SHAB timeline, every item linked to its notice)
 
 "Health" means warning signs from register events. Private companies publish no financials.
+
+**MES leads** (beyond the three MVP use cases): licensed manufacturers (Swissmedic activity 1 or 3) ranked by capped points:
+
+| Points (max items counted) | Signal |
+|---|---|
+| 3 (2) | Building permit for production, lab or cleanroom |
+| 3 (1) | MES/eBR terms on website or feed |
+| 2 (1) | Hiring: career page naming MES or a vendor |
+| 2 (1) | MES vendor named (PharmaSuite, Tulip, PAS-X, Syncade, Opcenter, ...) |
+| 2 (2) | Licence change: site or activity added, compliance status changed |
+| 1 each (1) | Other building permit, expansion news, digitalisation news, management change (12 months), capital increase, new medicine authorisations |
+
+Every point is backed by dated evidence with a link. A lead means "worth a call", not "confirmed need".
 
 How each one is answered:
 1. **Leads:** licence sites in the chosen cantons with the chosen activity (default: manufacturing), joined to SHAB notices labelled `board` or `management` in the last N days.
@@ -61,8 +85,8 @@ Done:
 - Tables `company`, `sogc_notice`, `swissmedic_site`.
 
 Next:
-1. Daily `zefix` + `shab` runs (cron or a scheduler container).
-2. Measure precision of the text rules on a labelled sample, then refine them.
+1. Scheduled runs: `zefix` + `shab` daily; `swissmedic`, `medicines`, `permits`, `websites`, `crawl` monthly.
+2. Measure precision of the text rules and MES keywords on a labelled sample, then refine them and the points.
 3. Retention job: delete notices the portal no longer serves.
 4. Use case 2 only covers companies whose history is loaded. Widen it with HR01 backfill or Zefix REST.
 5. Later: Zefix REST for founding date and capital of companies without SHAB history; LLM chat (D5); company reports (D9).
@@ -158,3 +182,21 @@ Next:
 - **Options:** Zefix REST (needs credentials); derive from SHAB notices.
 - **Choice:** founding date = HR01 notice. Capital raise = notice capital above the previous notice's capital. Health = register events (capital, auditor, seat, liquidation, bankruptcy, deletion).
 - **Consequence:** only companies registered since late 2019 (portal start) can have a founding date, which fits "founded since 2020". Results cover only companies whose history is loaded.
+
+### D16 · 2026-10-23 · MES-signal sources and crawler safeguards
+- **Context:** the founder wants to screen companies for MES needs (Tulip, PharmaSuite consulting). Register data shows who and when, not what.
+- **Options:** official sources only; plus company websites, feeds and career pages; plus job boards and press portals.
+- **Choice:** Phase A, official: building permits, Swissmedic licence history, authorised medicines. Phase B: company websites, feeds and career pages under the safeguards in the sources table. Job boards and presseportal.ch are excluded by their terms.
+- **Consequence:** legally defensible and polite, but coverage is partial. Permits are missing for cantons outside the portal. The crawler can't render JavaScript-only pages. Websites are found for only some companies.
+
+### D17 · 2026-10-23 · Company websites: registry first, verified guesses second
+- **Context:** Zefix/LINDAS has URLs for 96 companies and Wikidata for few. Search-engine scraping is barred by their terms.
+- **Options:** search engines; manual list; guessed domains with verification.
+- **Choice:** LINDAS → Wikidata → guessed `www.<name>.ch/.com`, accepted only if the homepage or imprint shows the company's UID or exact registered name. "Not found" is rechecked after 90 days.
+- **Consequence:** high precision, moderate recall. A manual override can be added later.
+
+### D18 · 2026-10-23 · Transparent points instead of a model for MES leads
+- **Context:** no labelled outcomes yet, no LLM (D5), and consultants need to see why a company ranks high.
+- **Options:** ML ranking; LLM judgment; capped rule-based points.
+- **Choice:** capped points per signal kind (see MES leads table), each backed by evidence.
+- **Consequence:** explainable and tunable; weights are a first guess. Calibrate them once consultants give feedback on lead quality.
