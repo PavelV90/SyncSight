@@ -6,7 +6,9 @@ export type CsvColumn<T> = {
 /** Semicolon-separated CSV with a UTF-8 BOM, so Excel (de-CH) opens it correctly. */
 export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   const cell = (value: string | number | null | undefined) => {
-    const text = value === null || value === undefined ? "" : String(value);
+    let text = value === null || value === undefined ? "" : String(value);
+    // text starting with = + - @ would run as a formula in Excel
+    if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
     return /[;"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
   };
   const lines = [
@@ -22,5 +24,5 @@ export function downloadCsv(filename: string, content: string): void {
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

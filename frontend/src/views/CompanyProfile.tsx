@@ -30,6 +30,10 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
   const focusedNotice = useRef<HTMLTableRowElement>(null);
   const focusDone = useRef(false);
+  const back = useRef<HTMLButtonElement>(null);
+
+  // the clicked link is hidden now: keep focus in the profile while it loads
+  useEffect(() => back.current?.focus(), []);
 
   useEffect(() => {
     // all notices of the period; the health filter is applied here so counts stay honest
@@ -61,7 +65,7 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
   return (
     <section aria-labelledby="profile-heading">
       <nav aria-label="Breadcrumb" className="breadcrumb">
-        <button type="button" className="link" onClick={onBack}>
+        <button type="button" className="link" onClick={onBack} ref={back}>
           ← Back to {from}
         </button>
         {data && (
@@ -76,7 +80,7 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
         <>
           <h2 id="profile-heading" ref={heading} tabIndex={-1}>
             {data.name}
-            {data.status !== "active" && (
+            {data.status && data.status !== "active" && (
               <span className="badge badge--warning">{data.status}</span>
             )}
           </h2>
@@ -127,8 +131,8 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
             <>
               <h3>Swissmedic licence sites</h3>
               <ul className="results">
-                {data.sites.map((s) => (
-                  <li key={`${s.licence_number}-${s.site_name}`}>
+                {data.sites.map((s, i) => (
+                  <li key={`${s.licence_number}-${i}`}>
                     {s.site_name}, {s.site_locality} ({s.site_canton}): {s.activities.join(", ")}
                     <span className="muted">
                       {" "}

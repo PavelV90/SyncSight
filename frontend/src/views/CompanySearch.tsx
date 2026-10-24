@@ -73,9 +73,10 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
     <section aria-labelledby="company-heading">
       <h2 id="company-heading">Company check</h2>
       <form onSubmit={submit} className="filters" noValidate>
-        <label>
-          Company name, keywords or UID
+        <div className="field">
+          <label htmlFor="company-q">Company name, keywords or UID</label>
           <input
+            id="company-q"
             value={q}
             minLength={2}
             placeholder="e.g. Lonza or CHE-105.815.381"
@@ -89,7 +90,7 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
               Enter at least 2 characters.
             </span>
           )}
-        </label>
+        </div>
         <label>
           Canton
           <select value={canton} onChange={(e) => setCanton(e.target.value)}>
@@ -130,9 +131,9 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
           Back to best-match order
         </button>
       )}
-      {data !== null && companies.length > 0 && (
+      {
         <ResultBar
-          summary={summary}
+          summary={data !== null ? summary : ""}
           uids={sorted.map((c) => c.uid)}
           csv={() => ({
             filename: "syncsight-companies.csv",
@@ -146,7 +147,7 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
             ]),
           })}
         />
-      )}
+      }
       {sorted.length > 0 && (
         <div className="table-wrap">
           <table>

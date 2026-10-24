@@ -26,9 +26,11 @@ const yearsAgo = (years: number) => {
 const increase = (t: Target) => Math.round((t.capital_after - t.capital_before) * 100) / 100;
 const increasePct = (t: Target) =>
   t.capital_before ? (increase(t) / t.capital_before) * 100 : null;
+const percent = new Intl.NumberFormat("de-CH", { maximumFractionDigits: 1 });
 const formatIncrease = (t: Target) => {
   const pct = increasePct(t);
-  return `+${formatChf(increase(t))}${pct === null ? "" : ` (+${pct < 1 ? pct.toFixed(1) : Math.round(pct)} %)`}`;
+  const share = pct === null ? "" : pct < 0.1 ? " (<0.1 %)" : ` (+${percent.format(pct)} %)`;
+  return `+${formatChf(increase(t))}${share}`;
 };
 
 /** Use case 2: young companies in a field that recently raised capital. */
@@ -99,9 +101,10 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
         their capital in the chosen period.
       </p>
       <form onSubmit={submit} className="filters" noValidate>
-        <label>
-          Keywords
+        <div className="field">
+          <label htmlFor="targets-q">Keywords</label>
           <input
+            id="targets-q"
             value={filters.q}
             placeholder="e.g. medtech or diagnostics"
             aria-invalid={errors.q ? true : undefined}
@@ -114,10 +117,11 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
             </span>
           )}
           <SearchSyntaxHint id="targets-syntax" />
-        </label>
-        <label>
-          Founded since
+        </div>
+        <div className="field">
+          <label htmlFor="targets-founded">Founded since</label>
           <input
+            id="targets-founded"
             type="date"
             required
             max={today()}
@@ -143,16 +147,18 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
               </button>
             ))}
           </span>
-        </label>
+        </div>
         <PeriodSelect
           label="Capital raised in"
           value={filters.days}
           onChange={(days) => setFilters({ ...filters, days })}
           options={[90, 182, 365, 730, 1096]}
         />
-        <label>
-          Min. increase (CHF)
+        <div className="field">
+          <label htmlFor="targets-min">Min. increase (CHF)</label>
           <input
+            id="targets-min"
+            aria-describedby="targets-min-help"
             type="number"
             inputMode="numeric"
             min={0}
@@ -161,8 +167,10 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
             placeholder="any"
             onChange={(e) => setMinIncrease(e.target.value)}
           />
-          <span className="hint small">Filters the loaded results</span>
-        </label>
+          <span id="targets-min-help" className="hint small">
+            Filters the loaded results
+          </span>
+        </div>
         <div className="form-actions">
           <button type="submit" className="primary" disabled={loading} aria-busy={loading}>
             Find targets
@@ -178,11 +186,15 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
         error={error}
         empty={data !== null && targets.length === 0}
         onRetry={retry}
-        emptyText="No company matches these filters."
+        emptyText={
+          data?.length
+            ? "No company reaches the minimum increase."
+            : "No company matches these filters."
+        }
       />
-      {data !== null && (
+      {
         <ResultBar
-          summary={summary}
+          summary={data !== null ? summary : ""}
           uids={sorted.map((t) => t.company.uid)}
           csv={() => ({
             filename: "syncsight-investment-targets.csv",
@@ -202,7 +214,7 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
             ]),
           })}
         />
-      )}
+      }
       {sorted.length > 0 && (
         <div className="table-wrap">
           <table>
@@ -292,9 +304,9 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
                       <time dateTime={t.raised_on}>{formatDate(t.raised_on)}</time>
                     </a>
                   </td>
-                  <td className="num">{formatChf(t.capital_before)}</td>
-                  <td className="num">{formatChf(t.capital_after)}</td>
-                  <td className="num">{formatIncrease(t)}</td>
+                  <td className="num nowrap">{formatChf(t.capital_before)}</td>
+                  <td className="num nowrap">{formatChf(t.capital_after)}</td>
+                  <td className="num nowrap">{formatIncrease(t)}</td>
                 </tr>
               ))}
             </tbody>

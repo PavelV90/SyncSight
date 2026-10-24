@@ -159,9 +159,9 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
           mustHave.length ? "No lead has all selected signals." : "No leads match these filters."
         }
       />
-      {data !== null && (
+      {
         <ResultBar
-          summary={summary}
+          summary={data !== null ? summary : ""}
           uids={sorted.map((l) => l.company.uid)}
           csv={() => ({
             filename: "syncsight-mes-leads.csv",
@@ -182,7 +182,7 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
             ]),
           })}
         />
-      )}
+      }
       {sorted.length > 0 && (
         <div className="table-wrap">
           <table>

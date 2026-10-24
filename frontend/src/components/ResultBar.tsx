@@ -3,45 +3,49 @@ import { useState } from "react";
 import { downloadCsv } from "../lib/csv";
 
 type Props = {
-  summary: string;
+  summary: string; // empty until the first result; the live region exists from the start
   csv?: () => { filename: string; content: string };
   uids?: string[];
 };
 
 /** Result summary (announced to screen readers) with export actions. */
 export function ResultBar({ summary, csv, uids }: Props) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const copyUids = () => {
     if (!uids?.length) return;
-    void navigator.clipboard.writeText(uids.join("\n")).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard
+      .writeText(uids.join("\n"))
+      .then(() => setCopy("copied"))
+      .catch(() => setCopy("failed"))
+      .finally(() => window.setTimeout(() => setCopy("idle"), 2500));
   };
+  const hasRows = Boolean(uids?.length);
   return (
     <div className="result-bar">
       <p role="status" className="result-summary">
         {summary}
       </p>
-      <div className="toolbar">
-        {csv && (
-          <button
-            type="button"
-            disabled={!uids?.length}
-            onClick={() => {
-              const { filename, content } = csv();
-              downloadCsv(filename, content);
-            }}
-          >
-            Export CSV{uids?.length ? ` (${uids.length})` : ""}
+      <span role="status" className="sr-only">
+        {copy === "copied" ? "UIDs copied" : copy === "failed" ? "Copying UIDs failed" : ""}
+      </span>
+      {hasRows && (
+        <div className="toolbar">
+          {csv && (
+            <button
+              type="button"
+              onClick={() => {
+                const { filename, content } = csv();
+                downloadCsv(filename, content);
+              }}
+            >
+              Export CSV ({uids?.length} rows)
+            </button>
+          )}
+          <button type="button" onClick={copyUids}>
+            {copy === "copied" ? "Copied ✓" : copy === "failed" ? "Copy failed" : "Copy UIDs"}
           </button>
-        )}
-        {uids && (
-          <button type="button" disabled={!uids.length} onClick={copy}>
-            {copied ? "Copied ✓" : "Copy UIDs"}
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

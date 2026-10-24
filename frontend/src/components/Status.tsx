@@ -26,11 +26,6 @@ export function Status({ loading, error, empty, onRetry, emptyText = "No results
         Loading…
       </p>
     );
-  if (empty)
-    return (
-      <p role="status" className="status">
-        {emptyText}
-      </p>
-    );
+  if (empty) return <p className="status">{emptyText}</p>;
   return null;
 }

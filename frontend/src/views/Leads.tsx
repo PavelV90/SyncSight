@@ -83,9 +83,13 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
     { company: (l: Lead) => l.company.name, last: (l: Lead) => l.last_change },
     { key: "last", dir: "desc" },
   );
-  const describe = (f: Filters) =>
-    `${f.activities.map(activityName).join(" or ")} licence holders with ` +
-    `${f.changes.map(changeLabel).join(" or ").toLowerCase()} changes`;
+  const describe = (f: Filters) => {
+    const who = f.activities.length
+      ? `${f.activities.map(activityName).join(" or ")} licence holders`
+      : "Licence holders";
+    const what = f.changes.length ? f.changes.map(changeLabel).join(" or ").toLowerCase() : "any";
+    return `${who} with ${what} changes`;
+  };
   const summary =
     `${leads.length} companies · ${submitted.cantons.length ? submitted.cantons.join(", ") : "all cantons"} · ` +
     `${periodLabel(submitted.days)} · ${describe(submitted)}`;
@@ -156,9 +160,9 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
         onRetry={retry}
         emptyText="No company matches these filters."
       />
-      {data !== null && (
+      {
         <ResultBar
-          summary={summary}
+          summary={data !== null ? summary : ""}
           uids={sorted.map((l) => l.company.uid)}
           csv={() => ({
             filename: "syncsight-leads.csv",
@@ -175,7 +179,7 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
             ]),
           })}
         />
-      )}
+      }
       {sorted.length > 0 && (
         <div className="table-wrap">
           <table>

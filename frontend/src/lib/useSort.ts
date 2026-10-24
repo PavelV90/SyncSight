@@ -19,8 +19,9 @@ export function useSort<T, A extends Record<string, (row: T) => Value>>(
     return [...rows].sort((a, b) => {
       const x = get(a);
       const y = get(b);
-      if (x === null || x === undefined || x === "") return y === null || y === undefined ? 0 : 1;
-      if (y === null || y === undefined || y === "") return -1;
+      const xEmpty = x === null || x === undefined || x === "";
+      const yEmpty = y === null || y === undefined || y === "";
+      if (xEmpty || yEmpty) return xEmpty === yEmpty ? 0 : xEmpty ? 1 : -1;
       const order =
         typeof x === "number" && typeof y === "number" ? x - y : collator.compare(`${x}`, `${y}`);
       return order * factor;

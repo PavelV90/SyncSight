@@ -57,6 +57,26 @@ export default function App() {
     });
   };
 
+  const selectTab = (key: Tab) => {
+    setTab(key);
+    setProfile(null);
+  };
+  // WAI-ARIA tabs: arrows, Home and End move between tabs and select them
+  const onTabKey = (event: React.KeyboardEvent) => {
+    const index = TABS.findIndex(([key]) => key === tab);
+    const next = {
+      ArrowRight: (index + 1) % TABS.length,
+      ArrowLeft: (index - 1 + TABS.length) % TABS.length,
+      Home: 0,
+      End: TABS.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const key = TABS[next][0];
+    selectTab(key);
+    document.getElementById(`tab-${key}`)?.focus();
+  };
+
   const views: Array<[Tab, React.ReactNode]> = [
     ["mes", <MesLeads key="mes" onOpenCompany={openCompany} openedUid={lastOpened} />],
     ["leads", <Leads key="leads" onOpenCompany={openCompany} openedUid={lastOpened} />],
@@ -82,7 +102,7 @@ export default function App() {
           </button>
         </div>
       )}
-      <div role="tablist" aria-label="Views" className="tabs">
+      <div role="tablist" aria-label="Views" className="tabs" onKeyDown={onTabKey}>
         {TABS.map(([key, label]) => (
           <button
             key={key}
@@ -91,11 +111,9 @@ export default function App() {
             role="tab"
             aria-selected={tab === key}
             aria-controls={`panel-${key}`}
+            tabIndex={tab === key ? 0 : -1}
             className={tab === key ? "tab active" : "tab"}
-            onClick={() => {
-              setTab(key);
-              setProfile(null);
-            }}
+            onClick={() => selectTab(key)}
           >
             {label}
           </button>
