@@ -198,14 +198,19 @@ def mes_leads(
 def _targets(
     session: Session, cantons: Collection[str], uids: Collection[str] | None
 ) -> dict[str, MesLead]:
-    query = select(SwissmedicSite).where(
+    # cantons decide which companies qualify; the lead then shows all its manufacturing sites
+    qualifying = select(SwissmedicSite.company_uid).where(
         SwissmedicSite.company_uid.is_not(None),
         SwissmedicSite.activity_codes.overlap(list(MES_ACTIVITIES)),
     )
     if cantons:
-        query = query.where(SwissmedicSite.site_canton.in_(cantons))
+        qualifying = qualifying.where(SwissmedicSite.site_canton.in_(cantons))
     if uids is not None:
-        query = query.where(SwissmedicSite.company_uid.in_(list(uids)))
+        qualifying = qualifying.where(SwissmedicSite.company_uid.in_(list(uids)))
+    query = select(SwissmedicSite).where(
+        SwissmedicSite.company_uid.in_(qualifying),
+        SwissmedicSite.activity_codes.overlap(list(MES_ACTIVITIES)),
+    )
     sites: dict[str, list[SwissmedicSite]] = defaultdict(list)
     for site in session.scalars(query):
         sites[site.company_uid or ""].append(site)

@@ -14,7 +14,7 @@ from syncsight.api import schemas
 from syncsight.db import mes, queries, status
 from syncsight.db.models import Company, CompanyWebsite
 from syncsight.db.session import make_engine
-from syncsight.ingestion.normalize import normalize_uid
+from syncsight.ingestion.normalize import clean_street, normalize_uid
 from syncsight.ingestion.shab import PUBLIC_URL
 from syncsight.ingestion.swissmedic import ACTIVITIES
 
@@ -93,7 +93,7 @@ def company_profile(
 @app.get("/api/leads")
 def swissmedic_leads(
     session: DbSession,
-    cantons: Annotated[list[str], Query()] = ["BS", "BL", "AG"],  # noqa: B006
+    cantons: Annotated[list[str], Query()] = [],  # noqa: B006 - empty: all cantons
     days: Annotated[int, Query(ge=1, le=3650)] = 90,
     activity: Annotated[list[int], Query()] = [1],  # noqa: B006
     changes: Annotated[list[str], Query()] = ["board", "management"],  # noqa: B006
@@ -179,5 +179,5 @@ def data_status(session: DbSession) -> list[schemas.SourceStatus]:
 
 def _address(company: Company) -> str | None:
     place = " ".join(p for p in (company.postal_code, company.locality) if p)
-    street = " ".join((company.street or "").split())
+    street = clean_street(company.street) or ""
     return ", ".join(p for p in (street, place) if p) or None

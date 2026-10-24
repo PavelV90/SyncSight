@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { CANTON_CODES } from "../lib/labels";
 import { company, fetchedUrls, mockApi, notice } from "../test-api";
 import { Leads } from "./Leads";
 
@@ -32,7 +31,7 @@ it("loads with Basel-region defaults and opens the profile at the triggering not
   );
 });
 
-it("sends every canton explicitly when none is selected", async () => {
+it("sends no canton filter when none is selected (all cantons)", async () => {
   const fetchMock = mockApi({ "/api/leads": [] });
   render(<Leads onOpenCompany={() => {}} openedUid={null} />);
   await screen.findByText("No company matches these filters.");
@@ -43,5 +42,5 @@ it("sends every canton explicitly when none is selected", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Find leads" }));
 
   const url = new URL(fetchedUrls(fetchMock).at(-1)!, "http://x");
-  expect(url.searchParams.getAll("cantons")).toEqual(CANTON_CODES);
+  expect(url.searchParams.getAll("cantons")).toEqual([]);
 });

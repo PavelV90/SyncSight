@@ -5,8 +5,10 @@ import logging
 from collections.abc import Sequence
 from datetime import date, timedelta
 
+import httpx2
 from sqlalchemy.orm import Session
 
+from syncsight.db.models import IngestRun
 from syncsight.db.session import make_engine
 from syncsight.ingestion import medicines, permits, shab, swissmedic, web, zefix_lindas
 from syncsight.ingestion.http import make_client
@@ -19,39 +21,50 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.getLogger("httpx2").setLevel(logging.WARNING)  # one line per request is too noisy
     engine = make_engine()
     with Session(engine) as session, make_client() as client:
-        if args.source == "zefix":
-            zefix_lindas.run(session, client, cantons=args.canton)
-        elif args.source == "shab" and args.uid:
-            for uid in args.uid:
-                shab.run(session, client, keyword=uid, delay=args.delay)
-        elif args.source == "shab":
-            shab.run(session, client, since=args.since, until=args.until, delay=args.delay)
-        elif args.source == "shab-swissmedic":
-            uids = swissmedic.matched_uids(session)
-            logging.info("shab: history of %d Swissmedic-licensed companies", len(uids))
-            for uid in uids:
-                shab.run(session, client, keyword=uid, delay=args.delay)
-        elif args.source == "swissmedic":
-            swissmedic.run(session, client)
-        elif args.source == "permits":
-            targets = args.uid or swissmedic.matched_uids(session)
-            permits.run(session, client, targets, since=args.since, delay=args.delay)
-        elif args.source in ("websites", "crawl"):
-            targets = args.uid or swissmedic.matched_uids(session)
-            if args.source == "websites":
-                web.resolve_websites(session, client, targets)
-            else:
-                web.crawl(session, targets)
-        elif args.source == "medicines":
-            medicines.run(session, client)
-        elif args.source == "reclassify":
-            changed = shab.reclassify(session)
-            logging.info("shab: %d notices relabelled", changed)
-        elif args.source == "match":
-            matched = swissmedic.match_companies(session)
-            session.commit()
-            logging.info("swissmedic: %d holders matched", matched)
+        _run(args, session, client)
+        # reached only when the command succeeded
+        session.add(IngestRun(source=_RUN_SOURCES.get(args.source, args.source)))
+        session.commit()
     engine.dispose()
+
+
+# commands that refresh the same source as another command
+_RUN_SOURCES = {"shab-swissmedic": "shab", "match": "swissmedic", "reclassify": "shab"}
+
+
+def _run(args: argparse.Namespace, session: Session, client: httpx2.Client) -> None:
+    if args.source == "zefix":
+        zefix_lindas.run(session, client, cantons=args.canton)
+    elif args.source == "shab" and args.uid:
+        for uid in args.uid:
+            shab.run(session, client, keyword=uid, delay=args.delay)
+    elif args.source == "shab":
+        shab.run(session, client, since=args.since, until=args.until, delay=args.delay)
+    elif args.source == "shab-swissmedic":
+        uids = swissmedic.matched_uids(session)
+        logging.info("shab: history of %d Swissmedic-licensed companies", len(uids))
+        for uid in uids:
+            shab.run(session, client, keyword=uid, delay=args.delay)
+    elif args.source == "swissmedic":
+        swissmedic.run(session, client)
+    elif args.source == "permits":
+        targets = args.uid or swissmedic.matched_uids(session)
+        permits.run(session, client, targets, since=args.since, delay=args.delay)
+    elif args.source in ("websites", "crawl"):
+        targets = args.uid or swissmedic.matched_uids(session)
+        if args.source == "websites":
+            web.resolve_websites(session, client, targets)
+        else:
+            web.crawl(session, targets)
+    elif args.source == "medicines":
+        medicines.run(session, client)
+    elif args.source == "reclassify":
+        changed = shab.reclassify(session)
+        logging.info("shab: %d notices relabelled", changed)
+    elif args.source == "match":
+        matched = swissmedic.match_companies(session)
+        session.commit()
+        logging.info("swissmedic: %d holders matched", matched)
 
 
 def _parser() -> argparse.ArgumentParser:

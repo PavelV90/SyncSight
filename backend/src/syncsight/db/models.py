@@ -202,3 +202,15 @@ class WebHit(Base):
     keywords: Mapped[list[str]] = mapped_column(ARRAY(Text))
     snippet: Mapped[str | None] = mapped_column(Text)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IngestRun(Base):
+    """A successful `syncsight-ingest` run: freshness also moves when nothing changed."""
+
+    __tablename__ = "ingest_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(Text, index=True)  # the ingest subcommand
+    finished_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from syncsight.api.main import app, get_session
-from syncsight.db.models import Company, SogcNotice, SwissmedicSite
+from syncsight.db.models import Company, IngestRun, SogcNotice, SwissmedicSite
 
 pytestmark = pytest.mark.db
 TODAY = date.today()
@@ -34,7 +34,7 @@ def _notice(
     )  # fmt: skip
 
 
-def _site(uid: str, licence: str, canton: str, codes: list[int]) -> SwissmedicSite:
+def _site(uid: str, licence: str, canton: str | None, codes: list[int]) -> SwissmedicSite:
     return SwissmedicSite(
         licence_number=licence, site_number="1", holder_name="x", holder_name_key="x",
         site_name="Werk", site_canton=canton, activity_codes=codes, company_uid=uid,
@@ -139,3 +139,31 @@ def test_data_status_lists_sources_with_staleness(client: TestClient) -> None:
         "key": "medicines", "label": "Authorised medicines", "rows": 0, "last_loaded_at": None,
         "newest_record": None, "stale": True, "command": "medicines",
     }  # fmt: skip
+
+
+def test_leads_canton_filter_selects_companies_but_shows_all_their_sites(
+    client: TestClient, db_session: Session
+) -> None:
+    db_session.add_all(
+        [_site("CHE-000.000.001", "L1b", "ZH", [1]), _site("CHE-000.000.001", "L1c", None, [1])]
+    )  # second site elsewhere, third without canton
+    db_session.flush()
+
+    in_bs = client.get("/api/leads", params={"cantons": ["BS"], "days": 90}).json()
+    everywhere = client.get("/api/leads", params={"days": 90}).json()
+
+    assert in_bs[0]["site_cantons"] == ["BS", "ZH"]
+    assert [lead["company"]["name"] for lead in everywhere] == ["Alpenpharma AG"]
+
+
+def test_data_status_counts_runs_that_found_nothing_new(
+    client: TestClient, db_session: Session
+) -> None:
+    db_session.add(IngestRun(source="medicines"))
+    db_session.flush()
+
+    medicines = next(s for s in client.get("/api/status").json() if s["key"] == "medicines")
+
+    assert medicines["rows"] == 0
+    assert medicines["last_loaded_at"] is not None
+    assert medicines["stale"] is False

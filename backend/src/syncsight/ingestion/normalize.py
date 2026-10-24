@@ -19,6 +19,12 @@ def normalize_uid(value: str | None) -> str | None:
     return "CHE-{}.{}.{}".format(*match.groups()) if match else None
 
 
+def clean_street(street: str | None) -> str | None:
+    """Collapse whitespace and drop the literal "null" LINDAS uses for missing parts."""
+    words = [w for w in (street or "").split() if w.lower() != "null"]
+    return " ".join(words) or None
+
+
 def name_key(name: str) -> str:
     """Case-, quote- and whitespace-insensitive key for matching company names across sources."""
     text = unicodedata.normalize("NFKC", name).translate(_QUOTES).casefold()

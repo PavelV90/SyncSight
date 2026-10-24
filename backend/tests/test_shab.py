@@ -163,3 +163,17 @@ def test_run_by_uid_marks_full_history_fetched(db_session: Session) -> None:
 
     company = db_session.get(Company, "CHE-000.000.001")
     assert company is not None and company.history_fetched_at is not None
+
+
+@pytest.mark.db
+def test_date_restricted_uid_run_is_not_a_full_history(db_session: Session) -> None:
+    db_session.add(Company(uid="CHE-000.000.001", name="Beispiel Pharma AG", status="active"))
+    notices = {parse_notice(HR02).id: HR02}
+
+    shab.run(
+        db_session, _fake_api(notices, []), keyword="CHE-000.000.001",
+        since=date(2026, 10, 1), delay=0,
+    )  # fmt: skip
+
+    company = db_session.get(Company, "CHE-000.000.001")
+    assert company is not None and company.history_fetched_at is None

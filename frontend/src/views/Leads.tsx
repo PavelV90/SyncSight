@@ -12,7 +12,6 @@ import { toCsv } from "../lib/csv";
 import {
   ACTIVITIES,
   BASEL_REGION,
-  CANTON_CODES,
   CHANGES,
   changeLabel,
   visibleChanges,
@@ -47,8 +46,7 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
         getJson<Lead[]>(
           "/api/leads",
           {
-            // always explicit: the API falls back to BS, BL, AG when no canton is sent
-            cantons: f.cantons.length ? f.cantons : CANTON_CODES,
+            cantons: f.cantons, // none selected: all cantons
             days: f.days,
             activity: f.activities,
             changes: f.changes,

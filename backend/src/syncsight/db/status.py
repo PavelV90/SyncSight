@@ -11,6 +11,7 @@ from syncsight.db.models import (
     BuildingPermit,
     Company,
     CompanyWebsite,
+    IngestRun,
     Medicine,
     SogcNotice,
     SwissmedicSite,
@@ -56,6 +57,11 @@ _SOURCES: list[tuple[str, str, Any, Any, Any, Any, int, str]] = [
 
 
 def source_status(session: Session) -> list[SourceStatus]:
+    last_runs = dict(
+        session.execute(
+            select(IngestRun.source, func.max(IngestRun.finished_at)).group_by(IngestRun.source)
+        ).all()
+    )
     statuses = []
     for key, label, model, where, loaded, newest, stale_days, command in _SOURCES:
         columns = [func.count(), func.max(loaded)]
@@ -66,7 +72,11 @@ def source_status(session: Session) -> list[SourceStatus]:
             query = query.where(where)
         row = session.execute(query).one()
         newest_record = row[2] if newest is not None else None
+        # a run that found nothing new still counts as a load
+        loads = [t for t in (row[1], last_runs.get(command)) if t is not None]
         statuses.append(
-            SourceStatus(key, label, row[0], row[1], newest_record, stale_days, command)
+            SourceStatus(
+                key, label, row[0], max(loads, default=None), newest_record, stale_days, command
+            )
         )
     return statuses

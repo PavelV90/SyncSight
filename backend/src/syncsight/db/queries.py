@@ -110,20 +110,23 @@ def swissmedic_leads(
     activity_codes: Collection[int],
     changes: Collection[str],
 ) -> list[Lead]:
-    """Licensed companies with sites in `cantons` and matching register changes since `since`."""
+    """Licensed companies with a site matching `cantons` (empty: any) and `activity_codes`, and
+    matching register changes since `since`. Shown sites and activities are all of the company's."""
+    qualifying = select(SwissmedicSite.company_uid).where(
+        SwissmedicSite.company_uid.is_not(None),
+        SwissmedicSite.activity_codes.overlap(list(activity_codes)),
+    )
+    if cantons:
+        qualifying = qualifying.where(SwissmedicSite.site_canton.in_(cantons))
     site_cantons: dict[str, set[str]] = {}
     site_activities: dict[str, set[int]] = {}
     for uid, canton, codes in session.execute(
         select(
             SwissmedicSite.company_uid, SwissmedicSite.site_canton, SwissmedicSite.activity_codes
-        ).where(
-            SwissmedicSite.company_uid.is_not(None),
-            SwissmedicSite.site_canton.in_(cantons),
-            SwissmedicSite.activity_codes.overlap(list(activity_codes)),
-        )
+        ).where(SwissmedicSite.company_uid.in_(qualifying))
     ):
-        if uid and canton:
-            site_cantons.setdefault(uid, set()).add(canton)
+        if uid:
+            site_cantons.setdefault(uid, set()).update([canton] if canton else [])
             site_activities.setdefault(uid, set()).update(codes)
     notices: dict[str, list[SogcNotice]] = {}
     for notice in session.scalars(

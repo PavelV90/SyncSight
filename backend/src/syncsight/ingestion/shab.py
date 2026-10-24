@@ -231,8 +231,8 @@ def run(
             batch.clear()
             log.info("shab: %d notices stored", total)
     total += upsert_notices(session, batch)
-    if uid := normalize_uid(keyword):
-        # a keyword search by UID returns the company's full history
+    if (uid := normalize_uid(keyword)) and since is None and until is None:
+        # an unrestricted keyword search by UID returns the company's full history
         session.execute(
             update(Company).where(Company.uid == uid).values(history_fetched_at=func.now())
         )
