@@ -47,6 +47,19 @@ describe("App", () => {
     expect(mesCalls).toHaveLength(1);
   });
 
+  it("moves between tabs with the arrow keys", async () => {
+    mockApi(routes);
+    render(<App />);
+    const mes = await screen.findByRole("tab", { name: "MES leads" });
+
+    fireEvent.keyDown(mes, { key: "ArrowRight" });
+
+    const leads = screen.getByRole("tab", { name: "Leads" });
+    expect(leads).toHaveAttribute("aria-selected", "true");
+    expect(leads).toHaveFocus();
+    expect(mes).toHaveAttribute("tabindex", "-1");
+  });
+
   it("reports an unreachable backend with a retry", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     render(<App />);

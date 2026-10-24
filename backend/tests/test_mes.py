@@ -30,10 +30,11 @@ def _site(uid: str, licence: str, codes: list[int]) -> SwissmedicSite:
     )  # fmt: skip
 
 
-def _permit(uid: str, notice_id: str, description: str) -> BuildingPermit:
+def _permit(uid: str, notice_id: str, description: str, days_ago: int = 30) -> BuildingPermit:
     return BuildingPermit(
         id=notice_id, company_uid=uid, publication_number=notice_id, sub_rubric="BP-BS10",
-        publication_date=TODAY - timedelta(days=30), description=description, applicant_name="x",
+        publication_date=TODAY - timedelta(days=days_ago), description=description,
+        applicant_name="x",
     )  # fmt: skip
 
 
@@ -44,9 +45,9 @@ def client(db_session: Session) -> Iterator[TestClient]:
         [
             Company(uid=uid_a, name="Alpenpharma AG", status="active"),
             _site(uid_a, "L1", [1]),
-            _permit(uid_a, "p1", "Neubau Produktionsgebäude"),
-            _permit(uid_a, "p2", "Neubau Produktionslinie 2"),
-            _permit(uid_a, "p3", "Ersatz Produktionskälte"),  # capped at two production permits
+            _permit(uid_a, "p1", "Neubau Produktionsgebäude", days_ago=30),
+            _permit(uid_a, "p2", "Neubau Produktionslinie 2", days_ago=60),
+            _permit(uid_a, "p3", "Ersatz Produktionskälte", days_ago=90),  # over the cap of two
             WebHit(company_uid=uid_a, url="https://a.ch/jobs/1", kind="career",
                    title="MES Engineer", keywords=["mes", "vendor:PharmaSuite"]),
             Company(uid=uid_b, name="Rheinchemie AG", status="active"),
@@ -119,3 +120,12 @@ def test_profile_carries_mes_signals_and_website(client: TestClient, db_session:
     assert profile["website"] == "https://www.alpenpharma.ch"
     assert profile["mes"]["score"] == 13
     assert plain["mes"] is None  # wholesale only: not an MES target
+
+
+def test_newest_items_earn_the_points_when_a_kind_is_capped(client: TestClient) -> None:
+    lead = client.get("/api/mes-leads").json()[0]
+
+    permits = [e for e in lead["evidence"] if e["kind"] == "permit_production"]
+    # three permits on different dates: the two newest count, the oldest is over the cap
+    assert [e["on"] for e in permits] == sorted((e["on"] for e in permits), reverse=True)
+    assert [e["points"] for e in permits] == [3, 3, 0]

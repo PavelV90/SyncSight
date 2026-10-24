@@ -1,7 +1,7 @@
 """The three MVP use cases, end to end through the API against Postgres."""
 
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -167,3 +167,17 @@ def test_data_status_counts_runs_that_found_nothing_new(
     assert medicines["rows"] == 0
     assert medicines["last_loaded_at"] is not None
     assert medicines["stale"] is False
+
+
+def test_data_status_flags_sources_older_than_their_threshold(
+    client: TestClient, db_session: Session
+) -> None:
+    run = IngestRun(source="permits")
+    db_session.add(run)
+    db_session.flush()
+    run.finished_at = datetime.now(UTC) - timedelta(days=46)  # permits are stale after 45 days
+    db_session.flush()
+
+    permits = next(s for s in client.get("/api/status").json() if s["key"] == "permits")
+
+    assert permits["stale"] is True

@@ -44,3 +44,15 @@ it("sends no canton filter when none is selected (all cantons)", async () => {
   const url = new URL(fetchedUrls(fetchMock).at(-1)!, "http://x");
   expect(url.searchParams.getAll("cantons")).toEqual([]);
 });
+
+it("asks for at least one activity before searching", async () => {
+  const fetchMock = mockApi({ "/api/leads": [] });
+  render(<Leads onOpenCompany={() => {}} openedUid={null} />);
+  await screen.findByText("No company matches these filters.");
+
+  fireEvent.click(screen.getByLabelText("Manufacturing"));
+  fireEvent.click(screen.getByRole("button", { name: "Find leads" }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose at least one activity");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
