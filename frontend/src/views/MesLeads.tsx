@@ -24,26 +24,25 @@ const DEFAULTS: Filters = { days: 730, cantons: [], minScore: 3 };
 /** Licensed pharma manufacturers ranked by MES signals, with the evidence behind each score. */
 export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
   const [filters, setFilters] = useState(DEFAULTS);
-  const [submitted, setSubmitted] = useState(DEFAULTS);
   const [mustHave, setMustHave] = useState<string[]>([]);
-  const [{ data, loading, error }, run, retry] = useQuery<MesLead[]>();
+  const [{ data, meta, loading, error }, run, retry] = useQuery<MesLead[], Filters>();
+  const submitted = meta ?? DEFAULTS;
 
   const load = (f: Filters) =>
-    run((signal) =>
-      getJson<MesLead[]>(
-        "/api/mes-leads",
-        {
-          months: Math.max(1, Math.round(f.days / 30.44)),
-          cantons: f.cantons,
-          min_score: f.minScore,
-        },
-        signal,
-      ),
+    run(
+      (signal) =>
+        getJson<MesLead[]>(
+          "/api/mes-leads",
+          {
+            months: Math.max(1, Math.round(f.days / 30.44)),
+            cantons: f.cantons,
+            min_score: f.minScore,
+          },
+          signal,
+        ),
+      f,
     );
-  const search = (f: Filters) => {
-    setSubmitted(f);
-    load(f);
-  };
+  const search = load;
   useEffect(() => load(DEFAULTS), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(event: FormEvent) {

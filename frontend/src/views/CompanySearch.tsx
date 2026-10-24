@@ -19,8 +19,11 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
   const [q, setQ] = useState("");
   const [canton, setCanton] = useState("");
   const [tooShort, setTooShort] = useState(false);
-  const [submitted, setSubmitted] = useState({ q: "", canton: "" });
-  const [{ data, loading, error }, run, retry] = useQuery<Company[]>();
+  const [{ data, meta, loading, error }, run, retry] = useQuery<
+    Company[],
+    { q: string; canton: string }
+  >();
+  const submitted = meta ?? { q: "", canton: "" };
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -29,13 +32,14 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
       return;
     }
     setTooShort(false);
-    setSubmitted({ q, canton });
-    run((signal) =>
-      getJson<Company[]>(
-        "/api/companies",
-        { q, limit: LIMIT, ...(canton ? { canton } : {}) },
-        signal,
-      ),
+    run(
+      (signal) =>
+        getJson<Company[]>(
+          "/api/companies",
+          { q, limit: LIMIT, ...(canton ? { canton } : {}) },
+          signal,
+        ),
+      { q, canton },
     );
   }
 

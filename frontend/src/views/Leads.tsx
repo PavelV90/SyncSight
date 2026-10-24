@@ -37,28 +37,27 @@ const leadChanges = (lead: Lead) =>
 /** Use case 1: licensed pharma companies with recent register changes (default: board or management). */
 export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
   const [filters, setFilters] = useState(DEFAULTS);
-  const [submitted, setSubmitted] = useState(DEFAULTS);
   const [formError, setFormError] = useState<string | null>(null);
-  const [{ data, loading, error }, run, retry] = useQuery<Lead[]>();
+  const [{ data, meta, loading, error }, run, retry] = useQuery<Lead[], Filters>();
+  const submitted = meta ?? DEFAULTS;
 
   const load = (f: Filters) =>
-    run((signal) =>
-      getJson<Lead[]>(
-        "/api/leads",
-        {
-          // always explicit: the API falls back to BS, BL, AG when no canton is sent
-          cantons: f.cantons.length ? f.cantons : CANTON_CODES,
-          days: f.days,
-          activity: f.activities,
-          changes: f.changes,
-        },
-        signal,
-      ),
+    run(
+      (signal) =>
+        getJson<Lead[]>(
+          "/api/leads",
+          {
+            // always explicit: the API falls back to BS, BL, AG when no canton is sent
+            cantons: f.cantons.length ? f.cantons : CANTON_CODES,
+            days: f.days,
+            activity: f.activities,
+            changes: f.changes,
+          },
+          signal,
+        ),
+      f,
     );
-  const search = (f: Filters) => {
-    setSubmitted(f);
-    load(f);
-  };
+  const search = load;
   useEffect(() => load(DEFAULTS), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(event: FormEvent) {

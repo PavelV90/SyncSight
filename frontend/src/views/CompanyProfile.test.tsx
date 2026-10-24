@@ -104,3 +104,16 @@ it("tells how to load a missing history", async () => {
     screen.getByText("No register notices loaded for this company yet (see above)."),
   ).toBeInTheDocument();
 });
+
+it("keeps focus on the period select when the period changes", async () => {
+  mockApi({ "/api/companies/CHE-000.000.001": profile });
+  render(<CompanyProfile uid="CHE-000.000.001" options={{}} from="Leads" onBack={() => {}} />);
+  expect(await screen.findByRole("heading", { name: "Alpenpharma AG" })).toHaveFocus();
+
+  const period = screen.getByLabelText("Period");
+  period.focus();
+  fireEvent.change(period, { target: { value: "3652" } });
+  await screen.findByText(/2 notices/);
+
+  expect(period).toHaveFocus();
+});

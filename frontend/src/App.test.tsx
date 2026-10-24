@@ -40,6 +40,7 @@ describe("App", () => {
 
     const link = screen.getByRole("button", { name: "Alpenpharma AG" });
     expect(link.closest("tr")).toHaveClass("row--opened");
+    await vi.waitFor(() => expect(link).toHaveFocus());
     const mesCalls = fetchMock.mock.calls.filter(([url]) =>
       String(url).startsWith("/api/mes-leads"),
     );

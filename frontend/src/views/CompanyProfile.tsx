@@ -29,6 +29,7 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
   const [{ data, loading, error }, run, retry] = useQuery<Profile>();
   const heading = useRef<HTMLHeadingElement>(null);
   const focusedNotice = useRef<HTMLTableRowElement>(null);
+  const focusDone = useRef(false);
 
   useEffect(() => {
     // all notices of the period; the health filter is applied here so counts stay honest
@@ -42,7 +43,9 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
   }, [uid, days, run]);
 
   useEffect(() => {
-    if (!data) return;
+    // only when the profile first appears; later reloads (period change, retry) keep focus where it is
+    if (!data || focusDone.current) return;
+    focusDone.current = true;
     if (options.noticeId && focusedNotice.current) {
       focusedNotice.current.scrollIntoView?.({ block: "center" });
       focusedNotice.current.focus();

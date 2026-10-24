@@ -28,7 +28,7 @@ export default function App() {
   const [lastOpened, setLastOpened] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [offline, setOffline] = useState(false);
-  const opener = useRef<HTMLElement | null>(null);
+  const listScroll = useRef(0);
 
   const checkHealth = useCallback(() => {
     getJson<Health>("/api/health")
@@ -41,15 +41,20 @@ export default function App() {
   useEffect(checkHealth, [checkHealth]);
 
   const openCompany: OpenCompany = (uid, options = {}) => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    listScroll.current = window.scrollY;
     setLastOpened(uid);
     setProfile({ uid, options });
     window.scrollTo({ top: 0 });
   };
   const closeProfile = () => {
     setProfile(null);
-    // the list stayed mounted, so the clicked company link still exists
-    requestAnimationFrame(() => opener.current?.focus());
+    // the list stayed mounted: return to where the user was and focus the company they opened
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listScroll.current });
+      document
+        .querySelector<HTMLElement>(`#panel-${tab} [data-uid="${lastOpened}"]`)
+        ?.focus({ preventScroll: true });
+    });
   };
 
   const views: Array<[Tab, React.ReactNode]> = [

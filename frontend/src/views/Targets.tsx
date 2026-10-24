@@ -32,23 +32,22 @@ const formatIncrease = (t: Target) => {
 /** Use case 2: young companies in a field that recently raised capital. */
 export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
   const [filters, setFilters] = useState(DEFAULTS);
-  const [submitted, setSubmitted] = useState(DEFAULTS);
   const [minIncrease, setMinIncrease] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [{ data, loading, error }, run, retry] = useQuery<Target[]>();
+  const [{ data, meta, loading, error }, run, retry] = useQuery<Target[], Filters>();
+  const submitted = meta ?? DEFAULTS;
 
   const load = (f: Filters) =>
-    run((signal) =>
-      getJson<Target[]>(
-        "/api/targets",
-        { q: f.q, founded_since: f.foundedSince, raised_within_days: f.days },
-        signal,
-      ),
+    run(
+      (signal) =>
+        getJson<Target[]>(
+          "/api/targets",
+          { q: f.q, founded_since: f.foundedSince, raised_within_days: f.days },
+          signal,
+        ),
+      f,
     );
-  const search = (f: Filters) => {
-    setSubmitted(f);
-    load(f);
-  };
+  const search = load;
   useEffect(() => load(DEFAULTS), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submit(event: FormEvent) {
