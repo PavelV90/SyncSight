@@ -52,3 +52,24 @@ it("highlights where the purpose matched", async () => {
   const mark = await screen.findByText("Medtech", { selector: "mark" });
   expect(mark.parentElement).toHaveTextContent("Entwicklung von Medtech-Geräten");
 });
+
+it("exports the increase without float artefacts and with the seat", async () => {
+  mockApi({ "/api/targets": [target("Odd AG", 160825.0, 187658.32)] });
+  const csv: string[] = [];
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: (blob: Blob) => {
+      void blob.text().then((text) => csv.push(text));
+      return "blob:x";
+    },
+    revokeObjectURL: () => {},
+  });
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
+
+  fireEvent.click(await screen.findByRole("button", { name: /Export CSV/ }));
+  await vi.waitFor(() => expect(csv).toHaveLength(1));
+
+  const [header, row] = csv[0].replace("﻿", "").split("\r\n");
+  expect(header).toContain("Seat;Canton");
+  expect(row).toContain(";26833.32;");
+});

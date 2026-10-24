@@ -20,7 +20,8 @@ const yearsAgo = (years: number) => {
   d.setFullYear(d.getFullYear() - years);
   return d.toISOString().slice(0, 10);
 };
-const increase = (t: Target) => t.capital_after - t.capital_before;
+// capital is in CHF with rappen; round the difference to avoid float artefacts (26833.320000000007)
+const increase = (t: Target) => Math.round((t.capital_after - t.capital_before) * 100) / 100;
 const increasePct = (t: Target) =>
   t.capital_before ? (increase(t) / t.capital_before) * 100 : null;
 const formatIncrease = (t: Target) => {
@@ -179,6 +180,7 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
               { header: "Company", value: (t) => t.company.name },
               { header: "UID", value: (t) => t.company.uid },
               { header: "Legal form", value: (t) => t.company.legal_form },
+              { header: "Seat", value: (t) => t.company.seat },
               { header: "Canton", value: (t) => t.company.canton },
               { header: "Purpose match", value: (t) => t.purpose_excerpt?.replace(/[⟦⟧]/g, "") },
               { header: "Founded", value: (t) => t.founded_on },

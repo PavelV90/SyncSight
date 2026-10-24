@@ -169,6 +169,7 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
               { header: "Company", value: (l) => l.company.name },
               { header: "UID", value: (l) => l.company.uid },
               { header: "Seat", value: (l) => l.company.seat },
+              { header: "Status", value: (l) => l.company.status },
               { header: "Licence sites in", value: (l) => l.site_cantons.join(", ") },
               { header: "Activities", value: (l) => l.activities.join(", ") },
               { header: "Last change", value: (l) => l.last_change },
