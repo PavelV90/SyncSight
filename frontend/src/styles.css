@@ -122,7 +122,7 @@ legend {
 .checks label {
   display: block;
 }
-.checks--2 {
+.filters .checks--2 {
   display: block;
   columns: 2;
 }
@@ -319,7 +319,9 @@ a {
   gap: 8px;
 }
 .table-wrap {
-  overflow-x: auto;
+  /* the wrapper scrolls (both ways) so the sticky header sticks to its top */
+  overflow: auto;
+  max-height: 75vh;
   border: 1px solid var(--c-border-soft);
   border-radius: var(--radius);
 }

@@ -73,3 +73,27 @@ it("exports the increase without float artefacts and with the seat", async () =>
   expect(header).toContain("Seat;Canton");
   expect(row).toContain(";26833.32;");
 });
+
+it("shows field errors next to the invalid inputs", async () => {
+  const fetchMock = mockApi({ "/api/targets": [] });
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
+  await screen.findByText("No company matches these filters.");
+
+  fireEvent.change(screen.getByLabelText(/Keywords/), { target: { value: "x" } });
+  fireEvent.click(screen.getByRole("button", { name: "Find targets" }));
+
+  const input = screen.getByLabelText(/Keywords/);
+  expect(input).toHaveAttribute("aria-invalid", "true");
+  expect(input).toHaveAccessibleDescription(/Enter at least 2 characters/);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("hides an excerpt that does not mark a match", async () => {
+  mockApi({
+    "/api/targets": [{ ...target("Medtech AG", 100000, 200000), purpose_excerpt: "Beratung." }],
+  });
+  render(<Targets onOpenCompany={() => {}} openedUid={null} />);
+
+  await screen.findByRole("button", { name: "Medtech AG" });
+  expect(screen.queryByText("Beratung.")).not.toBeInTheDocument();
+});

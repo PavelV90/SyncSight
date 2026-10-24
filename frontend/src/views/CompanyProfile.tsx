@@ -108,12 +108,15 @@ export function CompanyProfile({ uid, options, from, onBack }: Props) {
               <h3>
                 MES signals <span className="score">{data.mes.score}</span>
               </h3>
-              <p className="muted small">
-                {breakdownText(data.mes.breakdown, data.mes.score)} · last 2 years
-                {data.mes.vendors.length > 0 && ` · vendors named: ${data.mes.vendors.join(", ")}`}
-              </p>
               {data.mes.evidence.length > 0 ? (
-                <EvidenceList evidence={data.mes.evidence} breakdown={data.mes.breakdown} />
+                <>
+                  <p className="muted small">
+                    {breakdownText(data.mes.breakdown, data.mes.score)} · last 2 years
+                    {data.mes.vendors.length > 0 &&
+                      ` · vendors named: ${data.mes.vendors.join(", ")}`}
+                  </p>
+                  <EvidenceList evidence={data.mes.evidence} breakdown={data.mes.breakdown} />
+                </>
               ) : (
                 <p className="status">No MES signals in the last 2 years.</p>
               )}

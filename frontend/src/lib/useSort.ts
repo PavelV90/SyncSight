@@ -40,5 +40,6 @@ export function useSort<T, A extends Record<string, (row: T) => Value>>(
             ? initial.dir
             : "asc",
     }));
-  return { sorted, sortKey: sort.key, sortDir: sort.dir, toggle };
+  const reset = () => setSort(initial);
+  return { sorted, sortKey: sort.key, sortDir: sort.dir, toggle, reset };
 }

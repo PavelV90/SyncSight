@@ -14,11 +14,13 @@ import { useSort } from "../lib/useSort";
 
 type Filters = { q: string; foundedSince: string; days: number };
 const DEFAULTS: Filters = { q: "medtech", foundedSince: "2020-01-01", days: 365 };
-const today = () => new Date().toISOString().slice(0, 10);
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const today = () => isoDay(new Date());
 const yearsAgo = (years: number) => {
   const d = new Date();
   d.setFullYear(d.getFullYear() - years);
-  return d.toISOString().slice(0, 10);
+  return isoDay(d);
 };
 // capital is in CHF with rappen; round the difference to avoid float artefacts (26833.320000000007)
 const increase = (t: Target) => Math.round((t.capital_after - t.capital_before) * 100) / 100;
@@ -33,7 +35,7 @@ const formatIncrease = (t: Target) => {
 export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
   const [filters, setFilters] = useState(DEFAULTS);
   const [minIncrease, setMinIncrease] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ q?: string; date?: string }>({});
   const [{ data, meta, loading, error }, run, retry] = useQuery<Target[], Filters>();
   const submitted = meta ?? DEFAULTS;
 
@@ -52,17 +54,18 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (filters.q.trim().length < 2) return setFormError("Enter at least 2 characters.");
+    const found: typeof errors = {};
+    if (filters.q.trim().length < 2) found.q = "Enter at least 2 characters.";
     if (!filters.foundedSince || filters.foundedSince > today())
-      return setFormError("Choose a founding date that is not in the future.");
-    setFormError(null);
-    search(filters);
+      found.date = "Choose a date that is not in the future.";
+    setErrors(found);
+    if (!found.q && !found.date) search(filters);
   }
 
   function reset() {
     setFilters(DEFAULTS);
     setMinIncrease("");
-    setFormError(null);
+    setErrors({});
     search(DEFAULTS);
   }
 
@@ -101,9 +104,15 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
           <input
             value={filters.q}
             placeholder="e.g. medtech or diagnostics"
-            aria-describedby="targets-syntax"
+            aria-invalid={errors.q ? true : undefined}
+            aria-describedby={errors.q ? "targets-q-error targets-syntax" : "targets-syntax"}
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
           />
+          {errors.q && (
+            <span id="targets-q-error" className="field-error">
+              {errors.q}
+            </span>
+          )}
           <SearchSyntaxHint id="targets-syntax" />
         </label>
         <label>
@@ -113,8 +122,15 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
             required
             max={today()}
             value={filters.foundedSince}
+            aria-invalid={errors.date ? true : undefined}
+            aria-describedby={errors.date ? "targets-date-error" : undefined}
             onChange={(e) => setFilters({ ...filters, foundedSince: e.target.value })}
           />
+          {errors.date && (
+            <span id="targets-date-error" className="field-error">
+              {errors.date}
+            </span>
+          )}
           <span className="quick-picks">
             {[3, 5, 10].map((years) => (
               <button
@@ -154,11 +170,6 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
           <button type="button" onClick={reset}>
             Reset
           </button>
-          {formError && (
-            <span role="alert" className="field-error">
-              {formError}
-            </span>
-          )}
         </div>
       </form>
 
@@ -267,7 +278,7 @@ export function Targets({ onOpenCompany, openedUid }: ListViewProps) {
                         .filter(Boolean)
                         .join(" · ")}
                     </div>
-                    {t.purpose_excerpt && (
+                    {t.purpose_excerpt?.includes("⟦") && (
                       <div className="notice-text">
                         <Highlight text={t.purpose_excerpt} />
                       </div>

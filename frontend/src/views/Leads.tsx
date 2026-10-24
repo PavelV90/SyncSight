@@ -235,7 +235,9 @@ export function Leads({ onOpenCompany, openedUid }: ListViewProps) {
                   <td>
                     <Chips items={lead.site_cantons} />
                   </td>
-                  <td>{lead.activities.join(", ")}</td>
+                  <td>
+                    <Chips items={lead.activities} />
+                  </td>
                   <td className="nowrap">
                     <a href={lead.notices[0]?.url} target="_blank" rel="noreferrer">
                       <time dateTime={lead.last_change}>{formatDate(lead.last_change)}</time>

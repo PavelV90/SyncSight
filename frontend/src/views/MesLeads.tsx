@@ -247,7 +247,9 @@ export function MesLeads({ onOpenCompany, openedUid }: ListViewProps) {
                           {lead.vendors.join(", ")}
                         </span>
                       )}
-                      <div className="muted small">{lead.activities.join(", ")}</div>
+                      <div className="small">
+                        <Chips items={lead.activities} />
+                      </div>
                     </td>
                     <td>
                       <Chips items={lead.site_cantons} />

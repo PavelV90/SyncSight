@@ -44,7 +44,13 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
   }
 
   const companies = useMemo(() => data ?? [], [data]);
-  const { sorted, sortKey, sortDir, toggle } = useSort(
+  const {
+    sorted,
+    sortKey,
+    sortDir,
+    toggle,
+    reset: resetSort,
+  } = useSort(
     companies,
     {
       relevance: (c: Company) => companies.indexOf(c),
@@ -57,10 +63,11 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
     { key: "relevance", dir: "asc" },
   );
   const where = submitted.canton ? ` in ${submitted.canton}` : "";
+  const order = sortKey === "relevance" ? "best match first" : "re-sorted";
   const summary =
     companies.length >= LIMIT
-      ? `First ${LIMIT} matches for '${submitted.q}'${where} shown, best first. Refine to see others.`
-      : `${companies.length} companies for '${submitted.q}'${where}`;
+      ? `First ${LIMIT} matches for '${submitted.q}'${where} (${order}). Refine to see others.`
+      : `${companies.length} companies for '${submitted.q}'${where} (${order})`;
 
   return (
     <section aria-labelledby="company-heading">
@@ -98,6 +105,16 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
           <button type="submit" className="primary" disabled={loading} aria-busy={loading}>
             Search
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQ("");
+              setCanton("");
+              setTooShort(false);
+            }}
+          >
+            Reset
+          </button>
         </div>
       </form>
 
@@ -108,6 +125,11 @@ export function CompanySearch({ onOpenCompany, openedUid }: ListViewProps) {
         onRetry={retry}
         emptyText="No company found. Try fewer words or another spelling."
       />
+      {sortKey !== "relevance" && companies.length > 0 && (
+        <button type="button" className="link small" onClick={resetSort}>
+          Back to best-match order
+        </button>
+      )}
       {data !== null && companies.length > 0 && (
         <ResultBar
           summary={summary}

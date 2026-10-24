@@ -23,5 +23,8 @@ describe("dates", () => {
     expect(formatDate(null)).toBe("–");
     expect(formatRelative("2026-10-20", today)).toBe("3 days ago");
     expect(formatRelative("2026-04-23", today)).toBe("6 months ago");
+    // datetimes are shown in local time, not as their UTC calendar day
+    const lateUtc = new Date(2026, 9, 23, 0, 30).toISOString();
+    expect(formatDate(lateUtc)).toBe("23.10.2026");
   });
 });

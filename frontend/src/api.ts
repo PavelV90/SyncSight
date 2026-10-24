@@ -163,14 +163,19 @@ export function formatChf(value: number | null): string {
   return value === null ? "–" : chf.format(value);
 }
 
-/** "2026-10-20" -> "20.10.2026"; "–" when missing. */
+/** "2026-10-20" -> "20.10.2026"; datetimes ("…T07:10:00Z") in local time; "–" when missing. */
 export function formatDate(iso: string | null): string {
-  return iso ? dateFormat.format(new Date(`${iso.slice(0, 10)}T00:00:00`)) : "–";
+  return iso ? dateFormat.format(toLocalDate(iso)) : "–";
+}
+
+function toLocalDate(iso: string): Date {
+  return iso.length > 10 ? new Date(iso) : new Date(`${iso}T00:00:00`);
 }
 
 /** Whole days between an ISO date and today (positive = past). */
 export function daysAgo(iso: string, today: Date = new Date()): number {
-  const then = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  const local = toLocalDate(iso);
+  const then = new Date(local.getFullYear(), local.getMonth(), local.getDate());
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.round((start.getTime() - then.getTime()) / 86_400_000);
 }

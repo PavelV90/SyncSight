@@ -33,6 +33,11 @@ it("searches with canton and limit and lists companies in a table", async () => 
 
   expect(await screen.findByRole("button", { name: "Lonza AG" })).toBeInTheDocument();
   expect(fetchedUrls(fetchMock)[0]).toBe("/api/companies?q=pharma&limit=100&canton=BS");
-  expect(screen.getByText("2 companies for 'pharma' in BS")).toBeInTheDocument();
+  expect(screen.getByText("2 companies for 'pharma' in BS (best match first)")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: /Status/ }));
+  expect(screen.getByText("2 companies for 'pharma' in BS (re-sorted)")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Back to best-match order" }));
+  expect(screen.getByText("2 companies for 'pharma' in BS (best match first)")).toBeInTheDocument();
   expect(screen.getByText("inactive")).toHaveClass("chip--warning");
 });
