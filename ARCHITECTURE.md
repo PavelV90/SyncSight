@@ -1,6 +1,6 @@
 # SyncSight — Architecture
 
-> Living document. Status: **MVP search + MES signals** (2026-10-23). Every architecture decision goes into the [decision log](#decision-log).
+> Living document. Status: **MVP search + MES signals, reviewed UI** (2026-10-24). Every architecture decision goes into the [decision log](#decision-log).
 
 ## Overview
 
@@ -18,8 +18,8 @@ MVP = search, filters and scoring over free official Swiss data. **No LLM, CHF 0
 |---|---|---|
 | Ingestion | Python 3.13, httpx2, defusedxml, openpyxl; one module per source; CLI `syncsight-ingest` | `backend/src/syncsight/ingestion/` |
 | Storage | PostgreSQL 18, SQLAlchemy 2, Alembic; full-text search (`simple` config, multilingual) | `backend/src/syncsight/db/`, `backend/migrations/` |
-| API | FastAPI: `/api/companies`, `/api/companies/{uid}`, `/api/leads`, `/api/targets`, `/api/mes-leads` (OpenAPI docs at `/docs`) | `backend/src/syncsight/api/` |
-| UI | React 19 + TypeScript + Vite (SPA): MES leads, Leads, Investment targets, Company check | `frontend/` |
+| API | FastAPI: `/api/companies`, `/api/companies/{uid}`, `/api/leads`, `/api/targets`, `/api/mes-leads`, `/api/mes-scoring`, `/api/status` (OpenAPI docs at `/docs`) | `backend/src/syncsight/api/` |
+| UI | React 19 + TypeScript + Vite (SPA), no UI library: MES leads, Leads, Investment targets, Company check, company profile; shared components in `frontend/src/components`, hooks and labels in `frontend/src/lib` | `frontend/` |
 | Dev / CI | Docker Compose, uv, npm, GitHub Actions | `compose.yaml`, `.github/workflows/ci.yml` |
 
 Entity key: the company **UID** (`CHE-xxx.xxx.xxx`). Sources without a UID (Swissmedic) are matched on name and address.
@@ -200,3 +200,15 @@ Next:
 - **Options:** ML ranking; LLM judgment; capped rule-based points.
 - **Choice:** capped points per signal kind (see MES leads table), each backed by evidence.
 - **Consequence:** explainable and tunable; weights are a first guess. Calibrate them once consultants give feedback on lead quality.
+
+### D19 · 2026-10-24 · UI conventions from the UI review
+- **Context:** a 40-point UI review (status quo vs. after) found the UI lacked the basics of lead-intelligence tools; batches A+B were then built and adversarially reviewed.
+- **Options:** UI library + router; small in-house components; keep the bare skeleton.
+- **Choice:** small in-house components, no router. List views stay mounted while a profile is open. Results load on open. Loaded rows are filtered and sorted client-side; CSV export (Excel-friendly) also runs client-side. Result lines describe the filters of the rows on screen. Accessibility follows WCAG 2.2 AA patterns (tabs, aria-sort, live regions, field errors).
+- **Consequence:** few dependencies and fast interaction on result sets of hundreds of rows. Not done yet: URL state and deep links (review row 9), a shortlist with notes (row 11), and smaller items (rows 28, 29, 38–40).
+
+### D20 · 2026-10-24 · Data freshness from an ingest-run log
+- **Context:** users must see when each source was last loaded. Taking the latest row timestamp misses runs that found nothing new.
+- **Options:** latest row timestamps only; a log of runs.
+- **Choice:** every successful `syncsight-ingest` command writes an `ingest_run` row. `/api/status` uses the later of that and the data timestamps, with per-source stale thresholds (daily sources 7 days, others 45–120).
+- **Consequence:** the header chip is reliable. Sources loaded by other means (manual SQL) only count through their row timestamps.
